@@ -1,0 +1,9 @@
+[submodule "src/rovo_gz_description"]
+	path = src/rovo_gz_description
+	url = git@github.com:phicode-robotics/rovo_gz_description.git
+[submodule "src/clearpath_simulator"]
+	path = src/clearpath_simulator
+	url = https://github.com/clearpathrobotics/clearpath_simulator.git
+[submodule "src/realsense-ros"]
+	path = src/realsense-ros
+	url = https://github.com/IntelRealSense/realsense-ros.git

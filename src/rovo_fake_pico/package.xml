@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>rovo_fake_pico</name>
+  <version>0.1.0</version>
+  <description>
+    UDP-to-Twist bridge that emulates the Rovo on-board Pico controller.
+    Listens on UDP port 8887 for packets emitted by gcs_cmd_vel.py,
+    decodes the LRPM/RRPM (VEL mode) or FWD/TURN (XY mode) fields and
+    republishes the equivalent geometry_msgs/Twist on /cmd_vel_gcs so
+    the simulated robot reacts identically to the real hardware path.
+  </description>
+  <maintainer email="tombabyrose@gmail.com">phicode</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
