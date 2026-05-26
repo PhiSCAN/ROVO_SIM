@@ -196,11 +196,18 @@ class FakePicoNode(Node):
 
     def _diag_timer(self) -> None:
         with self._lock:
-            self.get_logger().info(
-                f"rx={self._rx_count} last_LC={self._last_lc} "
-                f"v={self._last_twist.linear.x:.3f} w={self._last_twist.angular.z:.3f} "
-                f"estop={self._estop}"
-            )
+            rx = self._rx_count
+            last_lc = self._last_lc
+            lin = self._last_twist.linear.x
+            ang = self._last_twist.angular.z
+            est = self._estop
+        # Stay quiet while no UDP traffic (teleop-direct mode). Log only
+        # when packets are actually arriving.
+        if rx == 0:
+            return
+        self.get_logger().info(
+            f"rx={rx} last_LC={last_lc} v={lin:.3f} w={ang:.3f} estop={est}"
+        )
 
     def shutdown(self) -> None:
         self._stop.set()
