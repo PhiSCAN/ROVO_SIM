@@ -26,7 +26,6 @@ import threading
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, TwistStamped
-from std_msgs.msg import String, TwistStamped
 from std_msgs.msg import String
 
 
