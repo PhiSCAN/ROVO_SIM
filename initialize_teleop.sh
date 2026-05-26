@@ -17,4 +17,7 @@ exec docker exec -it initialize_simulation bash -c "\
   export RMW_IMPLEMENTATION=rmw_zenoh_cpp && \
   export ROS_DOMAIN_ID=50 && \
   ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-    --ros-args -r cmd_vel:=/cmd_vel_gcs -p stamped:=true"
+    --ros-args -r cmd_vel:=/cmd_vel_gcs \
+    -p stamped:=true \
+    -p repeat_rate:=30.0 \
+    -p key_timeout:=0.6"
