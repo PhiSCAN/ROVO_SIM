@@ -12,22 +12,19 @@ cd ROVO_SIM
 ./initialize_simulation.sh
 ```
 
-Default: empty world + RViz + fake_pico.
+Default world: `empty`.
 
 ## Worlds
 
-`empty`, `warehouse`, `pipeline`, `office`, `orchard`, `solar_farm`,
-`construction`.
-
-## Run with a specific world (e.g. warehouse)
-
-In another terminal, while container runs:
-
 ```bash
-docker exec -it initialize_simulation bash -c "source /opt/ros/rolling/setup.bash && source /opt/ROVO_SIM/install/setup.bash && ros2 launch rovo_gz_description rovo_clearpath.launch.py world:=warehouse launch_rviz:=true"
+./initialize_simulation.sh empty
+./initialize_simulation.sh warehouse
+./initialize_simulation.sh pipeline
+./initialize_simulation.sh office
+./initialize_simulation.sh orchard
+./initialize_simulation.sh solar_farm
+./initialize_simulation.sh construction
 ```
-
-Swap `world:=warehouse` for any world above.
 
 ## Drive
 

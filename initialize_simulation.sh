@@ -1,36 +1,28 @@
 #!/bin/bash
-# initialize_simulation.sh
-# Launch the Rovo simulation stack inside the navigation2:development
-# container: Zenoh router + Gazebo + RViz + rovo_fake_pico.
+# initialize_simulation.sh [WORLD]
 #
-# First-run behaviour:
-#   - git submodule update --init --recursive (clears clearpath_simulator,
-#     realsense-ros, rovo_gz_description)
-#   - touch src/realsense-ros/COLCON_IGNORE (driver intentionally skipped;
-#     remove this line to build the realsense driver)
+# WORLD: empty (default) | warehouse | pipeline | office | orchard |
+#        solar_farm | construction
 #
-# Packages in src/:
-#   rovo_gz_description    submodule: URDF, worlds, sim launch
-#   rovo_fake_pico         vendored: UDP -> /cmd_vel_gcs bridge
-#   clearpath_simulator    submodule: clearpath worlds + meshes
-#   realsense-ros          submodule (COLCON_IGNORED by default)
+# Launches Zenoh + clearpath/empty world + RViz + rovo_fake_pico inside
+# the navigation2:development container.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIM_WS_DIR="${SCRIPT_DIR}"
 
+WORLD="${1:-${WORLD:-empty}}"
+
 if [ ! -d "${SIM_WS_DIR}/src" ]; then
   echo "ERROR: ${SIM_WS_DIR}/src not found"
   exit 1
 fi
 
-# Init submodules on first run.
 if [ -d "${SIM_WS_DIR}/.git" ]; then
   git -C "${SIM_WS_DIR}" submodule update --init --recursive
 fi
 
-# COLCON_IGNORE realsense driver by default (submodule update strips it).
 if [ -d "${SIM_WS_DIR}/src/realsense-ros" ]; then
   touch "${SIM_WS_DIR}/src/realsense-ros/COLCON_IGNORE"
 fi
@@ -41,8 +33,9 @@ fi
 
 xhost +local: >/dev/null 2>&1 || true
 
-WORLD="${WORLD:-empty.sdf}"
-MODEL="${MODEL:-rovo_tracked.urdf.xacro}"
+MODEL="${MODEL:-tracked}"
+
+echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
 
 docker run \
   --privileged \
