@@ -28,9 +28,14 @@ Default world: `empty`.
 
 ## Drive
 
+In a separate terminal:
+
 ```bash
-docker exec -it initialize_simulation bash -c "source /opt/ROVO_SIM/install/setup.bash && ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd_vel_gcs"
+./initialize_teleop.sh
 ```
+
+Execs into the running container, runs `teleop_twist_keyboard` publishing
+TwistStamped on `/cmd_vel_gcs`.
 
 ## Enable realsense driver
 
