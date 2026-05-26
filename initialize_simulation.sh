@@ -31,6 +31,14 @@ if [ "$(docker ps -aq -f name=^/initialize_simulation$)" ]; then
   docker rm -f initialize_simulation
 fi
 
+# Bind robot IP 192.168.1.200 to host loopback so the in-container Zenoh
+# router (listening on tcp/[::]:7447) is reachable at tcp/192.168.1.200:7447,
+# matching ZENOH_CONFIG_OVERRIDE in the navigation2:development image.
+if ! ip addr show lo | grep -q "192.168.1.200"; then
+  sudo ip addr add 192.168.1.200/32 dev lo 2>/dev/null \
+    || echo "WARN: could not add 192.168.1.200 loopback alias (need sudo)"
+fi
+
 xhost +local: >/dev/null 2>&1 || true
 
 MODEL="${MODEL:-tracked}"
