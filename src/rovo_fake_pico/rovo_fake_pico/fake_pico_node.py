@@ -22,6 +22,7 @@ DiffDrive / TrackedVehicle plugin <topic> in rovo_gz_description.
 import math
 import socket
 import threading
+from time import monotonic
 
 import rclpy
 from rclpy.node import Node
@@ -63,6 +64,7 @@ class FakePicoNode(Node):
         self.declare_parameter("status_topic", "rovo_can_state")
         self.declare_parameter("status_rate_hz", 50.0)
         self.declare_parameter("output_frame_id", "base_link")
+        self.declare_parameter("udp_timeout_s", 0.5)
 
         self.listen_ip = self.get_parameter("listen_ip").value
         self.listen_port = int(self.get_parameter("listen_port").value)
@@ -75,6 +77,7 @@ class FakePicoNode(Node):
         self.status_topic = self.get_parameter("status_topic").value
         self.status_rate_hz = float(self.get_parameter("status_rate_hz").value)
         self.output_frame_id = self.get_parameter("output_frame_id").value
+        self.udp_timeout_s = float(self.get_parameter("udp_timeout_s").value)
 
         self.wheel_circumference = self.drive_diameter_m * math.pi
 
@@ -83,6 +86,7 @@ class FakePicoNode(Node):
         self._estop = False
         self._last_lc = -1
         self._rx_count = 0
+        self._last_rx_time = 0.0
         self._stop = threading.Event()
 
         self.pub = self.create_publisher(TwistStamped, self.output_topic, 10)
@@ -127,6 +131,7 @@ class FakePicoNode(Node):
                     self._estop = True
                     self._last_lc = int(fields.get("LC", self._last_lc))
                     self._rx_count += 1
+                    self._last_rx_time = monotonic()
                 return
 
             if mode == "VEL":
@@ -157,13 +162,23 @@ class FakePicoNode(Node):
                 self._estop = False
                 self._last_lc = int(fields.get("LC", self._last_lc))
                 self._rx_count += 1
+                self._last_rx_time = monotonic()
         except (ValueError, KeyError) as exc:
             self.get_logger().warning(f"bad packet: {payload!r} ({exc})")
 
     def _publish_timer(self) -> None:
+        # Skip publishing if no UDP packet ever received, or last packet is
+        # stale. Avoids fighting external publishers (e.g. teleop_twist_keyboard
+        # publishing directly on /cmd_vel_gcs when gcs_cmd_vel.py is not in
+        # the pipeline).
         with self._lock:
+            last_rx = self._last_rx_time
             lin_x = self._last_twist.linear.x
             ang_z = self._last_twist.angular.z
+        if last_rx == 0.0:
+            return
+        if (monotonic() - last_rx) > self.udp_timeout_s:
+            return
         msg = TwistStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.output_frame_id
