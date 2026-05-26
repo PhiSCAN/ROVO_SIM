@@ -56,7 +56,7 @@ docker run \
     cd /opt/ROVO_SIM && \
     colcon build --symlink-install && \
     source /opt/ROVO_SIM/install/setup.bash && \
-    export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
+    export RMW_IMPLEMENTATION=rmw_zenoh_cpp && \
     export ROS_DOMAIN_ID=50 && \
     exec ros2 launch rovo_gz_description sim_bringup.launch.py \
       world:=${WORLD} model:=${MODEL}"

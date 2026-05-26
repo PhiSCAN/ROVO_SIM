@@ -25,7 +25,9 @@ import threading
 
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, TwistStamped
+from std_msgs.msg import String, TwistStamped
+from std_msgs.msg import String
 
 
 DEFAULT_PORT = 8887
@@ -59,6 +61,9 @@ class FakePicoNode(Node):
         self.declare_parameter("max_rpm", DEFAULT_MAX_RPM)
         self.declare_parameter("output_topic", "/cmd_vel_gcs")
         self.declare_parameter("publish_rate_hz", 100.0)
+        self.declare_parameter("status_topic", "rovo_can_state")
+        self.declare_parameter("status_rate_hz", 50.0)
+        self.declare_parameter("output_frame_id", "base_link")
 
         self.listen_ip = self.get_parameter("listen_ip").value
         self.listen_port = int(self.get_parameter("listen_port").value)
@@ -68,6 +73,9 @@ class FakePicoNode(Node):
         self.max_rpm = int(self.get_parameter("max_rpm").value)
         self.output_topic = self.get_parameter("output_topic").value
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
+        self.status_topic = self.get_parameter("status_topic").value
+        self.status_rate_hz = float(self.get_parameter("status_rate_hz").value)
+        self.output_frame_id = self.get_parameter("output_frame_id").value
 
         self.wheel_circumference = self.drive_diameter_m * math.pi
 
@@ -78,7 +86,9 @@ class FakePicoNode(Node):
         self._rx_count = 0
         self._stop = threading.Event()
 
-        self.pub = self.create_publisher(Twist, self.output_topic, 10)
+        self.pub = self.create_publisher(TwistStamped, self.output_topic, 10)
+        self.status_pub = self.create_publisher(String, self.status_topic, 10)
+        self._alive_counter = 0
 
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -89,6 +99,7 @@ class FakePicoNode(Node):
         self._rx_thread.start()
 
         self.create_timer(1.0 / self.publish_rate_hz, self._publish_timer)
+        self.create_timer(1.0 / self.status_rate_hz, self._status_timer)
         self.create_timer(2.0, self._diag_timer)
 
         self.get_logger().info(
@@ -152,10 +163,22 @@ class FakePicoNode(Node):
 
     def _publish_timer(self) -> None:
         with self._lock:
-            twist = Twist()
-            twist.linear.x = self._last_twist.linear.x
-            twist.angular.z = self._last_twist.angular.z
-        self.pub.publish(twist)
+            lin_x = self._last_twist.linear.x
+            ang_z = self._last_twist.angular.z
+        msg = TwistStamped()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.output_frame_id
+        msg.twist.linear.x = lin_x
+        msg.twist.angular.z = ang_z
+        self.pub.publish(msg)
+
+    def _status_timer(self) -> None:
+        """Fake EC_RPDO1 feedback so gcs_cmd_vel.py FSM reaches OPERATIONAL.
+        MainState=2 (Active), UnlockState=2 (Active), AliveCounter increments."""
+        self._alive_counter = (self._alive_counter + 1) % 256
+        msg = String()
+        msg.data = f"MainState=2,UnlockState=2,AliveCounter={self._alive_counter}"
+        self.status_pub.publish(msg)
 
     def _diag_timer(self) -> None:
         with self._lock:

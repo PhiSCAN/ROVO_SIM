@@ -14,7 +14,7 @@ fi
 exec docker exec -it initialize_simulation bash -c "\
   source /opt/ros/rolling/setup.bash && \
   source /opt/ROVO_SIM/install/setup.bash && \
-  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp && \
+  export RMW_IMPLEMENTATION=rmw_zenoh_cpp && \
   export ROS_DOMAIN_ID=50 && \
   ros2 run teleop_twist_keyboard teleop_twist_keyboard \
     --ros-args -r cmd_vel:=/cmd_vel_gcs -p stamped:=true"
