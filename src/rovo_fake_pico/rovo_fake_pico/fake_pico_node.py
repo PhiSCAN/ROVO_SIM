@@ -162,8 +162,9 @@ class FakePicoNode(Node):
             fwd_n = fwd / 1000.0
             turn_n = turn / 1000.0
             max_wheel_ms = (self.max_rpm / self.gearbox_ratio) * self.wheel_circumference / 60.0
-            v_left = (fwd_n - turn_n) * max_wheel_ms
-            v_right = (fwd_n + turn_n) * max_wheel_ms
+            # positive turn_n → turn right → left faster, right slower
+            v_left = (fwd_n + turn_n) * max_wheel_ms
+            v_right = (fwd_n - turn_n) * max_wheel_ms
             linear_x = (v_left + v_right) / 2.0
             angular_z = (v_right - v_left) / self.wheel_base_m
 
