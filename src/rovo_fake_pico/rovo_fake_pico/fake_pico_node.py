@@ -31,6 +31,7 @@ from std_msgs.msg import String
 
 
 DEFAULT_PORT = 8887
+DEFAULT_ANDROID_PORT = 8888
 DEFAULT_DRIVE_DIAMETER_M = 0.35
 DEFAULT_GEARBOX_RATIO = 16.0
 DEFAULT_WHEEL_BASE_M = 1.05
@@ -55,6 +56,7 @@ class FakePicoNode(Node):
 
         self.declare_parameter("listen_ip", "0.0.0.0")
         self.declare_parameter("listen_port", DEFAULT_PORT)
+        self.declare_parameter("android_port", DEFAULT_ANDROID_PORT)
         self.declare_parameter("drive_diameter_m", DEFAULT_DRIVE_DIAMETER_M)
         self.declare_parameter("gearbox_ratio", DEFAULT_GEARBOX_RATIO)
         self.declare_parameter("wheel_base_m", DEFAULT_WHEEL_BASE_M)
@@ -68,6 +70,7 @@ class FakePicoNode(Node):
 
         self.listen_ip = self.get_parameter("listen_ip").value
         self.listen_port = int(self.get_parameter("listen_port").value)
+        self.android_port = int(self.get_parameter("android_port").value)
         self.drive_diameter_m = float(self.get_parameter("drive_diameter_m").value)
         self.gearbox_ratio = float(self.get_parameter("gearbox_ratio").value)
         self.wheel_base_m = float(self.get_parameter("wheel_base_m").value)
@@ -101,12 +104,21 @@ class FakePicoNode(Node):
         self._rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
         self._rx_thread.start()
 
+        self._android_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._android_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._android_sock.bind((self.listen_ip, self.android_port))
+        self._android_sock.settimeout(0.2)
+
+        self._android_rx_thread = threading.Thread(target=self._android_rx_loop, daemon=True)
+        self._android_rx_thread.start()
+
         self.create_timer(1.0 / self.publish_rate_hz, self._publish_timer)
         self.create_timer(1.0 / self.status_rate_hz, self._status_timer)
         self.create_timer(2.0, self._diag_timer)
 
         self.get_logger().info(
-            f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} "
+            f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} (gcs) "
+            f"and udp://{self.listen_ip}:{self.android_port} (android teleop) "
             f"-> publishing Twist on {self.output_topic} @ {self.publish_rate_hz} Hz"
         )
 
@@ -119,6 +131,54 @@ class FakePicoNode(Node):
             except OSError:
                 break
             self._handle_packet(data.decode("utf-8", errors="replace"))
+
+    def _android_rx_loop(self) -> None:
+        while not self._stop.is_set():
+            try:
+                data, _ = self._android_sock.recvfrom(RECV_BUFSIZE)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            self._handle_android_packet(data.decode("utf-8", errors="replace"))
+
+    def _handle_android_packet(self, payload: str) -> None:
+        """Parse Flutter picoStringFormat: FWD/TURN in [-1000,1000] (float*1000)."""
+        fields = _parse_packet(payload)
+        try:
+            estop = int(fields.get("ESTOP", "0")) != 0
+            if estop:
+                with self._lock:
+                    self._last_twist = Twist()
+                    self._estop = True
+                    self._last_lc = int(fields.get("LC", self._last_lc))
+                    self._rx_count += 1
+                    self._last_rx_time = monotonic()
+                return
+
+            fwd = float(fields.get("FWD", "0"))
+            turn = float(fields.get("TURN", "0"))
+            # FWD/TURN are (velocity * 1000); normalise to [-1, 1]
+            fwd_n = fwd / 1000.0
+            turn_n = turn / 1000.0
+            max_wheel_ms = (self.max_rpm / self.gearbox_ratio) * self.wheel_circumference / 60.0
+            v_left = (fwd_n - turn_n) * max_wheel_ms
+            v_right = (fwd_n + turn_n) * max_wheel_ms
+            linear_x = (v_left + v_right) / 2.0
+            angular_z = (v_right - v_left) / self.wheel_base_m
+
+            twist = Twist()
+            twist.linear.x = linear_x
+            twist.angular.z = angular_z
+
+            with self._lock:
+                self._last_twist = twist
+                self._estop = False
+                self._last_lc = int(fields.get("LC", self._last_lc))
+                self._rx_count += 1
+                self._last_rx_time = monotonic()
+        except (ValueError, KeyError) as exc:
+            self.get_logger().warning(f"bad android packet: {payload!r} ({exc})")
 
     def _handle_packet(self, payload: str) -> None:
         fields = _parse_packet(payload)
@@ -211,10 +271,11 @@ class FakePicoNode(Node):
 
     def shutdown(self) -> None:
         self._stop.set()
-        try:
-            self._sock.close()
-        except OSError:
-            pass
+        for sock in (self._sock, self._android_sock):
+            try:
+                sock.close()
+            except OSError:
+                pass
 
 
 def main(args=None):
