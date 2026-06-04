@@ -39,6 +39,10 @@ fi
 
 xhost +local: >/dev/null 2>&1 || true
 
+# Gazebo Fuel model cache vendored in-repo (gz_cache/) and mounted to
+# /root/.gz so warehouse's 27 Fuel models load locally, no per-launch fetch.
+mkdir -p "${SIM_WS_DIR}/gz_cache"
+
 MODEL="${MODEL:-tracked}"
 
 echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
@@ -54,6 +58,7 @@ docker run \
   --env=NVIDIA_VISIBLE_DEVICES=all \
   --env=NVIDIA_DRIVER_CAPABILITIES=all \
   --volume="${SIM_WS_DIR}:/opt/ROVO_SIM" \
+  --volume="${SIM_WS_DIR}/gz_cache:/root/.gz" \
   --volume /tmp/.X11-unix:/tmp/.X11-unix \
   --volume "$HOME/.Xauthority:/root/.Xauthority" \
   --device /dev/dri \

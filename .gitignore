@@ -3,3 +3,7 @@ install/
 log/
 *.pyc
 __pycache__/
+# gz runtime artifacts (keep only fuel model cache)
+gz_cache/auto_default.log
+gz_cache/rendering/
+gz_cache/sim/
