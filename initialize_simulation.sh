@@ -27,9 +27,7 @@ if [ -d "${SIM_WS_DIR}/src/realsense-ros" ]; then
   touch "${SIM_WS_DIR}/src/realsense-ros/COLCON_IGNORE"
 fi
 
-if [ "$(docker ps -aq -f name=^/initialize_simulation$)" ]; then
-  docker rm -f initialize_simulation
-fi
+docker rm -f initialize_simulation 2>/dev/null || true
 
 # Bind robot IP 192.168.1.200 to host loopback so the in-container Zenoh
 # router (listening on tcp/[::]:7447) is reachable at tcp/192.168.1.200:7447,
@@ -47,6 +45,7 @@ echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
 
 docker run \
   --privileged \
+  --runtime=nvidia \
   --net=host \
   --ipc=host \
   --name="initialize_simulation" \
