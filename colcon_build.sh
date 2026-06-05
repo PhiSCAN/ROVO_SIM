@@ -20,13 +20,16 @@ fi
 
 docker rm -f colcon_build 2>/dev/null || true
 
+# Clean runs inside the container as root: build/install/log are created
+# root-owned, so a host-side rm would hit permission denied.
 docker run \
   --name="colcon_build" \
-  --volume="${SIM_WS_DIR}:/opt/simulation_ws" \
+  --volume="${SIM_WS_DIR}:/opt/ROVO_SIM" \
   navigation2:development \
   bash -c "set -e && \
     source /opt/ros/rolling/setup.bash && \
-    cd /opt/simulation_ws && \
+    cd /opt/ROVO_SIM && \
+    rm -rf build install log && \
     rosdep update && \
     rosdep install --from-paths src --ignore-src -r -y && \
     colcon build --symlink-install"
