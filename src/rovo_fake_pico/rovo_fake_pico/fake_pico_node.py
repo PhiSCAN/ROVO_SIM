@@ -36,6 +36,7 @@ DEFAULT_DRIVE_DIAMETER_M = 0.35
 DEFAULT_GEARBOX_RATIO = 16.0
 DEFAULT_WHEEL_BASE_M = 1.05
 DEFAULT_MAX_RPM = 3200
+DEFAULT_RPM_MULTIPLIER = 4.0
 RECV_BUFSIZE = 1024
 
 
@@ -61,6 +62,7 @@ class FakePicoNode(Node):
         self.declare_parameter("gearbox_ratio", DEFAULT_GEARBOX_RATIO)
         self.declare_parameter("wheel_base_m", DEFAULT_WHEEL_BASE_M)
         self.declare_parameter("max_rpm", DEFAULT_MAX_RPM)
+        self.declare_parameter("rpm_multiplier", DEFAULT_RPM_MULTIPLIER)
         self.declare_parameter("output_topic", "/cmd_vel_gcs")
         self.declare_parameter("publish_rate_hz", 100.0)
         self.declare_parameter("status_topic", "rovo_can_state")
@@ -75,6 +77,7 @@ class FakePicoNode(Node):
         self.gearbox_ratio = float(self.get_parameter("gearbox_ratio").value)
         self.wheel_base_m = float(self.get_parameter("wheel_base_m").value)
         self.max_rpm = int(self.get_parameter("max_rpm").value)
+        self.rpm_multiplier = float(self.get_parameter("rpm_multiplier").value)
         self.output_topic = self.get_parameter("output_topic").value
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.status_topic = self.get_parameter("status_topic").value
@@ -119,7 +122,8 @@ class FakePicoNode(Node):
         self.get_logger().info(
             f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} (gcs) "
             f"and udp://{self.listen_ip}:{self.android_port} (android teleop) "
-            f"-> publishing Twist on {self.output_topic} @ {self.publish_rate_hz} Hz"
+            f"-> publishing Twist on {self.output_topic} @ {self.publish_rate_hz} Hz "
+            f"(rpm_multiplier={self.rpm_multiplier})"
         )
 
     def _rx_loop(self) -> None:
@@ -243,8 +247,10 @@ class FakePicoNode(Node):
         msg = TwistStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.output_frame_id
-        msg.twist.linear.x = lin_x
-        msg.twist.angular.z = ang_z
+        # rpm_multiplier scales wheel speeds to compensate for a slow sim bot;
+        # affects both linear and angular uniformly. 1.0 = no change.
+        msg.twist.linear.x = lin_x * self.rpm_multiplier
+        msg.twist.angular.z = ang_z * self.rpm_multiplier
         self.pub.publish(msg)
 
     def _status_timer(self) -> None:
