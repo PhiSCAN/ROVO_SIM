@@ -20,4 +20,6 @@ exec docker exec -it initialize_simulation bash -c "\
     --ros-args -r cmd_vel:=/cmd_vel_gcs \
     -p stamped:=true \
     -p repeat_rate:=30.0 \
-    -p key_timeout:=0.6"
+    -p key_timeout:=0.6 \
+    -p speed:=2.0 \
+    -p turn:=1.0"

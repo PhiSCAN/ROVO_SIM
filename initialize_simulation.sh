@@ -1,8 +1,8 @@
 #!/bin/bash
 # initialize_simulation.sh [WORLD]
 #
-# WORLD: empty (default) | warehouse | pipeline | office | orchard |
-#        solar_farm | construction
+# WORLD: empty (default) | autoware | warehouse | pipeline | office |
+#        orchard | solar_farm | construction
 #
 # Launches Zenoh + clearpath/empty world + RViz + rovo_fake_pico inside
 # the navigation2:development container.

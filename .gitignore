@@ -3,6 +3,9 @@ install/
 log/
 *.pyc
 __pycache__/
+# core dumps + raw source meshes (kept out of git; meshes converted to glb/stl)
+core
+autoware_sample.obj
 # gz runtime artifacts (keep only fuel model cache)
 gz_cache/auto_default.log
 gz_cache/rendering/
