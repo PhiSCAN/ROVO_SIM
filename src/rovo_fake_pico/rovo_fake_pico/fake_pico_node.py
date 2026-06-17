@@ -36,7 +36,7 @@ DEFAULT_DRIVE_DIAMETER_M = 0.35
 DEFAULT_GEARBOX_RATIO = 16.0
 DEFAULT_WHEEL_BASE_M = 1.05
 DEFAULT_MAX_RPM = 3200
-DEFAULT_RPM_MULTIPLIER = 2.0
+DEFAULT_RPM_MULTIPLIER = 1.0
 RECV_BUFSIZE = 1024
 
 
@@ -247,12 +247,14 @@ class FakePicoNode(Node):
         msg = TwistStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.output_frame_id
-        # rpm_multiplier scales LINEAR velocity only, to make the sim bot
-        # travel at a more realistic pace for a given Nav2 command. Angular is
-        # left at 1x on purpose: scaling angular distorts the left/right track
-        # ratio and saturates the gz track clamp (+/-3.0) on turns, causing
-        # erratic steering. Keep <= ~2.0 — larger values add enough hidden loop
-        # gain to oscillate Nav2's closed-loop tracking. 1.0 = no change.
+        # rpm_multiplier MUST stay 1.0 for Nav2. fake_pico reconstructs the
+        # exact (v, w) that gcs_cmd_vel encoded — same drive_diameter / gearbox
+        # / wheel_base constants, so the UDP round-trip is loss-free. Any
+        # multiplier != 1.0 injects open-loop gain between Nav2 and the plant:
+        # the robot moves faster than commanded, overshoots every lookahead
+        # point, and Nav2's closed loop oscillates (erratic motion). Sim
+        # "slowness" is real-time-factor / Nav2 vel limits — fix it there, not
+        # by scaling cmd_vel. Kept as a param only for deliberate experiments.
         msg.twist.linear.x = lin_x * self.rpm_multiplier
         msg.twist.angular.z = ang_z
         self.pub.publish(msg)

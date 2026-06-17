@@ -9,7 +9,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("listen_port", default_value="8887"),
         DeclareLaunchArgument("output_topic", default_value="/cmd_vel_gcs"),
-        DeclareLaunchArgument("rpm_multiplier", default_value="2.0"),
+        DeclareLaunchArgument("rpm_multiplier", default_value="1.0"),
         Node(
             package="rovo_fake_pico",
             executable="fake_pico_node",
