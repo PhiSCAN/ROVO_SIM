@@ -49,7 +49,7 @@ echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
 
 docker run \
   --privileged \
-  --runtime=nvidia \
+  --gpus all \
   --net=host \
   --ipc=host \
   --name="initialize_simulation" \
