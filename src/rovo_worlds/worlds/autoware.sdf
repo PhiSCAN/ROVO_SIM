@@ -27,8 +27,8 @@
       <background>0.4 0.6 0.8 1</background>
     </scene>
 
-    <physics name="1ms" type="ignored">
-      <max_step_size>0.001</max_step_size>
+    <physics name="3ms" type="ignored">
+      <max_step_size>0.003</max_step_size>
       <real_time_factor>1.0</real_time_factor>
     </physics>
 
