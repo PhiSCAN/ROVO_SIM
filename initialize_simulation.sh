@@ -49,7 +49,7 @@ echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
 
 docker run \
   --privileged \
-  --runtime=nvidia \
+  --gpus all \
   --net=host \
   --ipc=host \
   --name="initialize_simulation" \
@@ -57,6 +57,9 @@ docker run \
   --env="QT_X11_NO_MITSHM=1" \
   --env=NVIDIA_VISIBLE_DEVICES=all \
   --env=NVIDIA_DRIVER_CAPABILITIES=all \
+  --env=__NV_PRIME_RENDER_OFFLOAD=1 \
+  --env=__GLX_VENDOR_LIBRARY_NAME=nvidia \
+  --env=__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json \
   --volume="${SIM_WS_DIR}:/opt/ROVO_SIM" \
   --volume="${SIM_WS_DIR}/gz_cache:/root/.gz" \
   --volume /tmp/.X11-unix:/tmp/.X11-unix \
