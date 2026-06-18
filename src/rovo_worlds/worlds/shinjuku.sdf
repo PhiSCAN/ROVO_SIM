@@ -1,0 +1,357 @@
+<?xml version="1.0" ?>
+<!--
+  AWSIM Shinjuku environment — converted from Shinjuku.unitypackage.
+
+  Source: 16 FBX chunks (SJK01_P01..P06 map + trees + traffic lights),
+          imported in Blender 3.3, exported as one aligned scene:
+            shinjuku_visual.glb     — textured (PNG embedded, 512px max, 190M
+                                       vs 678M full). PNG not JPEG: gz ogre2
+                                       decodes embedded PNG reliably, embedded
+                                       JPEG renders flat. kill_metallic.py
+                                       zeroes metallic (64 facade mats were
+                                       metallic=1) AND emissive (265 mats had
+                                       emissiveFactor=[1,1,1] white glow ->
+                                       solid-white buildings). Z-up (export
+                                       _yup=False) so it aligns with the STL
+            shinjuku_collision.stl  — decimated 0.1 -> 326k tris (full 2.4M
+                                       collision BVH froze a 15 GB machine)
+
+  Blender world-space bbox (metres, 1:1):
+    min (-672.52, -568.47, -23.21)  max (538.64, 692.40, 236.77)
+    Raycast: dominant flat (road) surface at mesh z ~= -2. z_min=-23.2 is
+    stray underground geometry, NOT the ground — do not zero to it.
+
+  Pose offset puts a REAL asphalt road cell at world origin (the map centre
+  is a raised plaza, not road). Road located by road-material faces in the
+  FBX (road_spawn.py), then the DECIMATED collision (gz uses that) was
+  raycast at that XY (road_collide.py): contact mesh(-50.28, -9.45, -7.46),
+  normal.z=1.0 (flat road). Offset = -contact places it at world (0,0,0):
+    x: 50.28   y: 9.45   z: 7.46
+
+  Visual + collision share this pose => exact alignment (both Z-up, one scene).
+
+  Spawn: world (0, 0, 0.5) — small drop onto the central road cell.
+-->
+<sdf version="1.10">
+  <world name="shinjuku">
+
+    <scene>
+      <grid>false</grid>
+      <origin_visual>false</origin_visual>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.4 0.6 0.8 1</background>
+    </scene>
+
+    <physics name="3ms" type="ignored">
+      <max_step_size>0.003</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>35.6895</latitude_deg>
+      <longitude_deg>139.6917</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <!-- Toned down vs autoware: light beige facades + bright sun/specular
+         clamped to white ("Color values were clamped"). Lower diffuse, no
+         specular so albedo textures read instead of blowing out. -->
+    <!-- Shadows OFF: one directional shadow map stretched over a 1.2 km
+         world gives huge texels -> acne/blocky shadow projecting onto the
+         robot. Flat ambient+diffuse reads cleaner here. -->
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 50 0 0 0</pose>
+      <diffuse>0.7 0.7 0.7 1</diffuse>
+      <specular>0.0 0.0 0.0 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!--
+      Shinjuku environment — single static link, full mesh collision + visual.
+      Collision STL = everything (all 1776 mesh objects). Static => gz-sim
+      builds BVH once. Visual GLB = textured appearance. Same link/pose =>
+      guaranteed aligned.
+    -->
+    <model name="shinjuku_environment">
+      <static>true</static>
+      <pose>50.28 9.45 7.46 0 0 0</pose>
+      <link name="link">
+        <!-- Collapse-decimating "everything" lifted the collision ~0.46 m
+             above the visual road (road verts pulled toward curbs/walls),
+             so the robot stood on air over the visible road. This local
+             pose drops collision 0.46 m to align with the visual surface on
+             open road. (Near building bases the lift is larger, but the
+             robot drives roads.) -->
+        <collision name="collision">
+          <pose>0 0 -0.46 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>rovo_worlds/meshes/shinjuku_collision.stl</uri>
+              <scale>1 1 1</scale>
+            </mesh>
+          </geometry>
+          <surface>
+            <friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <mesh>
+              <uri>rovo_worlds/meshes/shinjuku_visual.glb</uri>
+              <scale>1 1 1</scale>
+            </mesh>
+          </geometry>
+          <!-- No <material> here: an SDF material overrides the glb's
+               embedded per-material textures with a flat colour. Omit it so
+               gz renders the mesh's own road/facade textures. -->
+        </visual>
+      </link>
+    </model>
+
+    <!-- GUI replicated from gz-sim9 default gui.config so camera_clip
+         travels with the world (gz_cache/sim is gitignored). Keeps all
+         default panels incl CameraTracking (follow cam). -->
+    <gui fullscreen="0">
+      <plugin filename="MinimalScene" name="3D View">
+        <gz-gui>
+          <title>3D View</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+      
+        <engine>ogre2</engine>
+        <scene>scene</scene>
+        <ambient_light>0.4 0.4 0.4</ambient_light>
+        <background_color>0.8 0.8 0.8</background_color>
+        <camera_pose>-6 0 6 0 0.5 0</camera_pose>
+        <!-- Shinjuku ~1.2 km wide, 200 m+ buildings. Default near clip (0.01)
+             over that range wrecks depth precision -> surfaces drop to background
+             ("sky") on zoom-in. Larger near + far restores it. -->
+        <camera_clip>
+          <near>0.25</near>
+          <far>8000</far>
+        </camera_clip>
+      </plugin>
+      
+      <!-- Plugins that add functionality to the scene -->
+      <plugin filename="EntityContextMenuPlugin" name="Entity context menu">
+        <gz-gui>
+          <property key="state" type="string">floating</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="GzSceneManager" name="Scene Manager">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="InteractiveViewControl" name="Interactive view control">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="CameraTracking" name="Camera Tracking">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="MarkerManager" name="Marker manager">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      <plugin filename="SelectEntities" name="Select Entities">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      
+      <plugin filename="Spawn" name="Spawn Entities">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      
+      <plugin filename="VisualizationCapabilities" name="Visualization Capabilities">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="width" type="double">5</property>
+          <property key="height" type="double">5</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+        </gz-gui>
+      </plugin>
+      
+      <!-- World control -->
+      <plugin filename="WorldControl" name="World control">
+        <gz-gui>
+          <title>World control</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">72</property>
+          <property type="double" key="z">1</property>
+      
+          <property type="string" key="state">floating</property>
+          <anchors target="3D View">
+            <line own="left" target="left"/>
+            <line own="bottom" target="bottom"/>
+          </anchors>
+        </gz-gui>
+      
+        <play_pause>true</play_pause>
+        <step>true</step>
+        <start_paused>true</start_paused>
+        <use_event>true</use_event>
+      
+      </plugin>
+      
+      <!-- World statistics -->
+      <plugin filename="WorldStats" name="World stats">
+        <gz-gui>
+          <title>World stats</title>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="bool" key="resizable">false</property>
+          <property type="double" key="height">110</property>
+          <property type="double" key="width">290</property>
+          <property type="double" key="z">1</property>
+      
+          <property type="string" key="state">floating</property>
+          <anchors target="3D View">
+            <line own="right" target="right"/>
+            <line own="bottom" target="bottom"/>
+          </anchors>
+        </gz-gui>
+      
+        <sim_time>true</sim_time>
+        <real_time>true</real_time>
+        <real_time_factor>true</real_time_factor>
+        <iterations>true</iterations>
+      </plugin>
+      
+      <!-- Insert simple shapes -->
+      <plugin filename="Shapes" name="Shapes">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">0</property>
+          <property key="y" type="double">0</property>
+          <property key="width" type="double">300</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#666666</property>
+        </gz-gui>
+      </plugin>
+      
+      <!-- Insert lights -->
+      <plugin filename="Lights" name="Lights">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">300</property>
+          <property key="y" type="double">0</property>
+          <property key="width" type="double">150</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#666666</property>
+        </gz-gui>
+      </plugin>
+      
+      <!-- Translate / rotate -->
+      <plugin filename="TransformControl" name="Transform control">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">0</property>
+          <property key="y" type="double">50</property>
+          <property key="width" type="double">250</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#777777</property>
+        </gz-gui>
+      </plugin>
+      
+      <!-- Screenshot -->
+      <plugin filename="Screenshot" name="Screenshot">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">250</property>
+          <property key="y" type="double">50</property>
+          <property key="width" type="double">50</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#777777</property>
+        </gz-gui>
+      </plugin>
+      
+      <!-- Copy/Paste -->
+      <plugin filename="CopyPaste" name="CopyPaste">
+        <gz-gui>
+          <property key="resizable" type="bool">false</property>
+          <property key="x" type="double">300</property>
+          <property key="y" type="double">50</property>
+          <property key="width" type="double">100</property>
+          <property key="height" type="double">50</property>
+          <property key="state" type="string">floating</property>
+          <property key="showTitleBar" type="bool">false</property>
+          <property key="cardBackground" type="string">#777777</property>
+        </gz-gui>
+      </plugin>
+      
+      <!-- Inspector -->
+      <plugin filename="ComponentInspector" name="Component inspector">
+        <gz-gui>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+      </plugin>
+      
+      <!-- Entity tree -->
+      <plugin filename="EntityTree" name="Entity tree">
+        <gz-gui>
+          <property type="bool" key="showTitleBar">false</property>
+          <property type="string" key="state">docked</property>
+        </gz-gui>
+      </plugin>
+    </gui>
+
+  </world>
+</sdf>
