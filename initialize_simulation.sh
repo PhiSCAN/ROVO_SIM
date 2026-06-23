@@ -69,6 +69,7 @@ docker run \
   bash -c "set -e && \
     source /opt/ros/rolling/setup.bash && \
     cd /opt/ROVO_SIM && \
+    rm -f /root/.gz/sim/*/gui.config && \
     colcon build --symlink-install && \
     source /opt/ROVO_SIM/install/setup.bash && \
     export RMW_IMPLEMENTATION=rmw_zenoh_cpp && \
