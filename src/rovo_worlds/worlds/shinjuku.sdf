@@ -88,14 +88,16 @@
       <static>true</static>
       <pose>50.28 9.45 7.46 0 0 0</pose>
       <link name="link">
-        <!-- Collapse-decimating "everything" lifted the collision ~0.46 m
-             above the visual road (road verts pulled toward curbs/walls),
-             so the robot stood on air over the visible road. This local
-             pose drops collision 0.46 m to align with the visual surface on
-             open road. (Near building bases the lift is larger, but the
-             robot drives roads.) -->
+        <!-- Collapse-decimating "everything" lifted the collision above the
+             visual road (road verts pulled toward curbs/walls), so the robot
+             stood on air over the visible road. Measured gap (trimesh raycast
+             vs visual tiles) was ~0.84 m on open road: robot rested at z~-0.02
+             while the visual road sits at z~-0.40. This local pose drops the
+             collision 0.84 m so tracks contact the visible road surface.
+             (Near building bases the lift is larger, but the robot drives
+             roads.) -->
         <collision name="collision">
-          <pose>0 0 -0.46 0 0 0</pose>
+          <pose>0 0 -0.84 0 0 0</pose>
           <geometry>
             <mesh>
               <uri>rovo_worlds/meshes/shinjuku_collision.stl</uri>
