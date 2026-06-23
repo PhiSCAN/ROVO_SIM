@@ -79,10 +79,10 @@
     </light>
 
     <!--
-      Shinjuku environment — single static link, full mesh collision + visual.
-      Collision STL = everything (all 1776 mesh objects). Static => gz-sim
-      builds BVH once. Visual GLB = textured appearance. Same link/pose =>
-      guaranteed aligned.
+      Shinjuku environment — single static link, full mesh collision + tiled
+      visual. Collision STL = everything (all 1776 mesh objects) in one mesh.
+      Static => gz-sim builds BVH once. Visual = 78 tile GLBs (100 m grid),
+      each its own <visual>/cull unit. Same link/pose => guaranteed aligned.
     -->
     <model name="shinjuku_environment">
       <static>true</static>
@@ -106,16 +106,399 @@
             <friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction>
           </surface>
         </collision>
-        <visual name="visual">
-          <geometry>
-            <mesh>
-              <uri>rovo_worlds/meshes/shinjuku_visual.glb</uri>
-              <scale>1 1 1</scale>
-            </mesh>
-          </geometry>
-          <!-- No <material> here: an SDF material overrides the glb's
-               embedded per-material textures with a flat colour. Omit it so
-               gz renders the mesh's own road/facade textures. -->
+        <!-- City split into 100 m tiles (tile_split.py). One <visual> per
+             tile = one ogre2 cull unit each (warehouse-style), instead of a
+             single 1 km off-centre monolith which gz drops at close range.
+             All share the link pose so they stay aligned with the collision. -->
+        <visual name="tile_0_0">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_0_0.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_0_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_0_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_0_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_0_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_0_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_0_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_0_9">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_0_9.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_0">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_0.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_1">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_1.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_2">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_2.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_1_9">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_1_9.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_0">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_0.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_1">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_1.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_2">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_2.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_2_9">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_2_9.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_0">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_0.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_1">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_1.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_2">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_2.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_3_9">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_3_9.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_0">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_0.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_1">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_1.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_2">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_2.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_4_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_4_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_1">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_1.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_2">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_2.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_5_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_5_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_0">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_0.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_1">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_1.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_2">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_2.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_6_9">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_6_9.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_1">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_1.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_2">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_2.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_7_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_7_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_8_3">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_8_3.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_8_4">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_8_4.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_8_5">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_8_5.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_8_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_8_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_8_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_8_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_8_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_8_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_9_6">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_9_6.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_9_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_9_7.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_9_8">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_9_8.glb</uri>
+          </mesh></geometry>
+        </visual>
+        <visual name="tile_10_7">
+          <geometry><mesh>
+            <uri>rovo_worlds/meshes/shinjuku_tiles/tile_10_7.glb</uri>
+          </mesh></geometry>
         </visual>
       </link>
     </model>
