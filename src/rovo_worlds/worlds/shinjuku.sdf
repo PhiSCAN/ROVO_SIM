@@ -42,8 +42,8 @@
       <background>0.4 0.6 0.8 1</background>
     </scene>
 
-    <physics name="3ms" type="ignored">
-      <max_step_size>0.003</max_step_size>
+    <physics name="10ms" type="ignored">
+      <max_step_size>0.01</max_step_size>
       <real_time_factor>1.0</real_time_factor>
     </physics>
 
@@ -88,21 +88,19 @@
       <static>true</static>
       <pose>50.28 9.45 7.46 0 0 0</pose>
       <link name="link">
-        <!-- Collapse-decimating "everything" lifted the collision above the
-             visual road (road verts pulled toward curbs/walls), so the robot
-             stood on air over the visible road. Measured gap (trimesh raycast
-             vs visual tiles) was ~0.84 m on open road: robot rested at z~-0.02
-             while the visual road sits at z~-0.40. This local pose drops the
-             collision 0.84 m so tracks contact the visible road surface.
-             (Near building bases the lift is larger, but the robot drives
-             roads.) -->
+        <!-- Collision = flat ground plane, NOT the 326k-tri city mesh.
+             Solving tracked-robot contacts against the full mesh at 333 Hz
+             pinned physics to RTF ~0.02 (jittery motion). The velodyne is a
+             gpu_lidar (raycasts the VISUAL tiles, not collision), so a plane
+             costs no lidar fidelity. Plane sits at the measured visual road
+             height z~-0.40 (world): link z=7.46 + sub-pose -7.86 = -0.40. -->
         <collision name="collision">
-          <pose>0 0 -0.84 0 0 0</pose>
+          <pose>0 0 -7.86 0 0 0</pose>
           <geometry>
-            <mesh>
-              <uri>rovo_worlds/meshes/shinjuku_collision.stl</uri>
-              <scale>1 1 1</scale>
-            </mesh>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>2000 2000</size>
+            </plane>
           </geometry>
           <surface>
             <friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction>
