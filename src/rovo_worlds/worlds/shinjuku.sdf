@@ -88,19 +88,22 @@
       <static>true</static>
       <pose>50.28 9.45 7.46 0 0 0</pose>
       <link name="link">
-        <!-- Collision = flat ground plane, NOT the 326k-tri city mesh.
-             Solving tracked-robot contacts against the full mesh at 333 Hz
-             pinned physics to RTF ~0.02 (jittery motion). The velodyne is a
-             gpu_lidar (raycasts the VISUAL tiles, not collision), so a plane
-             costs no lidar fidelity. Plane sits at the measured visual road
-             height z~-0.40 (world): link z=7.46 + sub-pose -7.86 = -0.40. -->
+        <!-- Collision = baked ground heightfield, NOT the 326k-tri city
+             mesh (full-mesh contacts pinned physics to RTF ~0.02) and NOT
+             a flat plane (visual ground spans ~-2.7..+10 m world; a plane
+             sank the robot into rising roads and floated it above falling
+             ones). tools/ground_collision.py raycasts the visual tiles on
+             a 4 m grid, keeps the lowest hit in band z(-3,+30) per cell,
+             despikes pits, and exports link-frame STL (same frame as the
+             visual tiles => no sub-pose, guaranteed aligned). 188k tris
+             but locally near-flat: the tracks only ever touch a few large
+             triangles, so contact cost stays plane-like. The velodyne is a
+             gpu_lidar (raycasts the VISUAL tiles, not collision). -->
         <collision name="collision">
-          <pose>0 0 -7.86 0 0 0</pose>
           <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>2000 2000</size>
-            </plane>
+            <mesh>
+              <uri>rovo_worlds/meshes/shinjuku_ground_collision.stl</uri>
+            </mesh>
           </geometry>
           <surface>
             <friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction>
@@ -500,31 +503,6 @@
             <uri>rovo_worlds/meshes/shinjuku_tiles/tile_10_7.glb</uri>
           </mesh></geometry>
         </visual>
-      </link>
-    </model>
-
-    <!-- Invisible collision backstop. The decimated collision STL (0.1 ->
-         326k tris) dips below the visual road in spots, so a single global
-         pose offset can't stop the robot sinking everywhere it drives. This
-         flat plane at road level (world z=0) catches the robot across the
-         whole driving area. Set 0.05 m below the road so the real mesh wins
-         on good road (no z-fight) and the plane only takes over where the
-         mesh dips. No <visual> -> not rendered. -->
-    <model name="road_collision_floor">
-      <static>true</static>
-      <pose>0 0 -0.05 0 0 0</pose>
-      <link name="link">
-        <collision name="collision">
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>2000 2000</size>
-            </plane>
-          </geometry>
-          <surface>
-            <friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction>
-          </surface>
-        </collision>
       </link>
     </model>
 
