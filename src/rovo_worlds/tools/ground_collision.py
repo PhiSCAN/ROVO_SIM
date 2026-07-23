@@ -130,6 +130,28 @@ def main():
     H[pit] = med[pit]
     print(f"despiked {int(pit.sum())} pit cells")
 
+    # Wall retraction: cell-centre vertices turn every vertical wall (deck
+    # vs road boundaries, ~6 m in places) into a one-cell 4 m ramp whose
+    # foot intrudes into the visible road — tracks climb it and the robot
+    # flips (seen at world (-46,-107): deck 6.9 west of x=-50, road 0.85
+    # east, collision ramp reached x=-46). Snap any cell that has a
+    # 4-neighbour more than 1.5 m LOWER down to its lowest such neighbour:
+    # the ramp moves one cell INTO the upper deck, its foot lands at the
+    # visual wall base and the road stays clear. Kerbs (<1.5 m) and real
+    # street slopes are untouched; deck edges give way ~one cell early,
+    # which is the safe direction (drop onto road, not flip on road).
+    low = np.full_like(H, np.inf)
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        sh = np.full_like(H, np.inf)
+        src = H[max(0, -dx):nx - max(0, dx) or None,
+                max(0, -dy):ny - max(0, dy) or None]
+        sh[max(0, dx):nx - max(0, -dx) or None,
+           max(0, dy):ny - max(0, -dy) or None] = src
+        low = np.minimum(low, sh)
+    wall = H > low + 1.5
+    H[wall] = low[wall]
+    print(f"retracted {int(wall.sum())} wall cells")
+
     # Heightfield -> mesh. Vertices at cell centres, world frame.
     xs = (np.arange(nx) + x0) * STEP + STEP / 2
     ys = (np.arange(ny) + y0) * STEP + STEP / 2
