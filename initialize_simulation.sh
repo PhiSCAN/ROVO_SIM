@@ -45,7 +45,11 @@ mkdir -p "${SIM_WS_DIR}/gz_cache"
 
 MODEL="${MODEL:-tracked}"
 
-echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
+# RealSense RGBD camera OFF by default (its 640x480@30Hz GPU->CPU readback is
+# the main gz-server RTF cost). Enable: REALSENSE=true ./initialize_simulation.sh shinjuku
+REALSENSE="${REALSENSE:-false}"
+
+echo "[initialize_simulation] world=${WORLD} model=${MODEL} realsense=${REALSENSE}"
 
 docker run \
   --privileged \
@@ -75,4 +79,4 @@ docker run \
     export RMW_IMPLEMENTATION=rmw_zenoh_cpp && \
     export ROS_DOMAIN_ID=50 && \
     exec ros2 launch rovo_gz_description sim_bringup.launch.py \
-      world:=${WORLD} model:=${MODEL}"
+      world:=${WORLD} model:=${MODEL} realsense:=${REALSENSE}"
