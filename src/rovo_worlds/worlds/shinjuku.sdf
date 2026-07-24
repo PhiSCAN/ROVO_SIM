@@ -88,17 +88,18 @@
       <static>true</static>
       <pose>50.28 9.45 7.46 0 0 0</pose>
       <link name="link">
-        <!-- Collision = baked ground heightfield, NOT the 326k-tri city
-             mesh (full-mesh contacts pinned physics to RTF ~0.02) and NOT
-             a flat plane (visual ground spans ~-2.7..+10 m world; a plane
-             sank the robot into rising roads and floated it above falling
-             ones). tools/ground_collision.py raycasts the visual tiles on
-             a 4 m grid, keeps the lowest hit in band z(-3,+30) per cell,
-             despikes pits, and exports link-frame STL (same frame as the
-             visual tiles => no sub-pose, guaranteed aligned). 188k tris
-             but locally near-flat: the tracks only ever touch a few large
-             triangles, so contact cost stays plane-like. The velodyne is a
-             gpu_lidar (raycasts the VISUAL tiles, not collision). -->
+        <!-- Collision = baked ground heightfield (complete coverage, no
+             holes, drivable everywhere). NOT the full 326k-tri city mesh:
+             that is a building shell with ~52% of the ground missing and its
+             solid parts are roofs/walls, so the robot fell through gaps and
+             caught/flipped on building geometry. tools/ground_collision.py
+             raycasts the visual tiles on a 4 m grid and takes the HIGHEST
+             ground-like hit per cell (an earlier lowest-hit rule dragged
+             raised deck tops ~2 m below their true height, sinking the robot,
+             e.g. world (53,366) true 2.75). Same link frame as the visual
+             tiles => no sub-pose. velodyne is a gpu_lidar (raycasts VISUAL,
+             not this). RTF is bounded by the RGBD camera, not collision tris
+             (lite 53k == full 196k measured identical), so keep realsense off. -->
         <collision name="collision">
           <geometry>
             <mesh>
