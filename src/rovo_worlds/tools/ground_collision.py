@@ -18,7 +18,11 @@ dragged down to some lower stray hit (the old lowest-hit rule sank the robot
 footprints read at their roof (non-drivable, harmless raised blocks). Bin all
 samples into a global 4 m grid (MAX per bin), fill interior holes by
 neighbour averaging, fill the outer apron with -0.40 (the measured spawn
-road height). No de-spike: an audit showed clipping "spikes" (cells taller
+road height), then FILL-SINKS: raise every enclosed bowl (a patch lower than
+its lowest rim out to the map edge) up to that rim, so the robot cannot drop
+into any hole/gap on drivable ground; capped at a drivable ceiling so
+building-walled voids stay low instead of becoming plateaus. No de-spike: an
+audit showed clipping "spikes" (cells taller
 than their neighbours) only ever cut NARROW REAL surfaces the robot drives
 onto (one-cell decks, ramps, walkways), sinking it 1-12 m; the collision now
 equals the visual top at every sampled cell (verified 0 sink). Steep level
@@ -32,6 +36,7 @@ Usage:
   ground_collision.py cache.npz  # reuse a saved scan (pts: N x [x y z])
 """
 import glob
+import heapq
 import os
 import sys
 
@@ -48,6 +53,7 @@ CAST_Z = 60.0                         # world z ray origin
 BAND = (-3.0, 30.0)                   # world z hits kept (ground band)
 APRON_Z = -0.40                       # fill height outside the city
 WALL_TH = 1.0                         # neighbour dz > WALL_TH gets a vertical wall
+FILL_CEIL = 10.0                      # fill-sinks only up to this drivable height
 
 
 def scan_tiles():
@@ -129,6 +135,51 @@ def main():
         H[fill] = acc[fill] / cnt[fill]
     H[np.isnan(H)] = APRON_Z
 
+    # Fill-sinks (hydrological depression fill, Planchon-Darboux / priority
+    # flood). The robot "sinks" wherever it drives onto a cell that sits in a
+    # BOWL -- a patch of ground lower than every path out of it. These are
+    # holes/gaps in the visual city (sparse or missing tiles), single-ray
+    # dropouts, or apron patches enclosed by higher deck: the highest-hit rule
+    # read them low, the smooth grid ramps down into them, and the robot drops
+    # in and disappears below the surface (e.g. world (366,350) a -1.0 cell in
+    # a 3 m deck, (54,210) a -0.7 cell in a 6 m deck). Filling every enclosed
+    # bowl up to its lowest rim removes ALL such traps map-wide in one pass:
+    # a cell only rises if it is lower than the lowest lip it would have to
+    # cross to reach the map edge. Real drivable descents keep their depth --
+    # a through-road, a ramp, or a courtyard with any opening DRAINS to the
+    # edge, so its spill height is its own height and it is left untouched;
+    # only true pockets fill. The fill never rises above the rim, so it only
+    # flattens holes (smoother tracks), never buries a step. Cap the accepted
+    # fill at FILL_CEIL: a void ringed solely by tall BUILDINGS (roof rim ~27
+    # m) would otherwise fill into a giant fake plateau, but the robot can
+    # never drive into a fully walled void, so leave those low and only close
+    # bowls whose rim is real drivable ground. Map edge is the only drain.
+    edge = np.zeros((nx, ny), bool)
+    edge[0, :] = edge[-1, :] = edge[:, 0] = edge[:, -1] = True
+    W = np.full((nx, ny), np.inf)
+    done = np.zeros((nx, ny), bool)
+    pq = []
+    ei, ej = np.where(edge)
+    for i, j in zip(ei.tolist(), ej.tolist()):
+        W[i, j] = H[i, j]
+        done[i, j] = True
+        heapq.heappush(pq, (H[i, j], i, j))
+    while pq:
+        z, i, j = heapq.heappop(pq)
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = i + di, j + dj
+            if a < 0 or b < 0 or a >= nx or b >= ny or done[a, b]:
+                continue
+            nz = H[a, b] if H[a, b] > z else z
+            W[a, b] = nz
+            done[a, b] = True
+            heapq.heappush(pq, (nz, a, b))
+    accept = W <= FILL_CEIL
+    n_fill = int(((W - H > 1e-6) & accept).sum())
+    H = np.where(accept, W, H)
+    print(f"fill-sinks: raised {n_fill} bowl cells to their rim "
+          f"(<= {FILL_CEIL:.0f} m)")
+
     # NOTE: no spike-clip. An earlier de-spike (pull cells >SPIKE above their
     # neighbour max down) was meant to drop trees/poles caught as the highest
     # hit, but an audit showed it only ever clipped NARROW REAL surfaces the
@@ -138,28 +189,28 @@ def main():
     # minor bump if a lone tree overhangs a road; that is far better than a
     # multi-metre sink on a surface the robot actually uses.
 
-    # Heightfield -> mesh. Vertices at cell centres, world frame.
+    # Heightfield -> SMOOTH shared-vertex mesh + vertical walls at big steps.
+    #
+    # Smooth continuous surface (one vertex per cell centre, quads between)
+    # gives smooth track motion -- a flat-top per-cell mesh turns every
+    # few-cm cell-to-cell height change on flat road into a tiny vertical
+    # step the tracks bump and deflect on (no smooth movement). The price of
+    # smoothness is a mild interpolation sag between cell centres near a
+    # level step (~0.2-0.3 m dip), a 4 m-resolution limit; the big sinks are
+    # already gone (highest-hit, no clip). At real level boundaries
+    # (neighbour dz > WALL_TH) add a VERTICAL wall so the tracks stop at the
+    # cliff instead of climbing the smoothed ramp and toppling.
     xs = (np.arange(nx) + x0) * STEP + STEP / 2
     ys = (np.arange(ny) + y0) * STEP + STEP / 2
     gx, gy = np.meshgrid(xs, ys, indexing="ij")
     verts = np.column_stack([gx.ravel(), gy.ravel(), H.ravel()]) - OFF
 
     idx = np.arange(nx * ny).reshape(nx, ny)
-    a = idx[:-1, :-1].ravel()
-    b = idx[1:, :-1].ravel()
-    c = idx[:-1, 1:].ravel()
-    d = idx[1:, 1:].ravel()
+    a = idx[:-1, :-1].ravel(); b = idx[1:, :-1].ravel()
+    c = idx[:-1, 1:].ravel(); d = idx[1:, 1:].ravel()
     faces = [np.column_stack([a, b, d]), np.column_stack([a, d, c])]
 
-    # Vertical walls at big steps. A smooth cell-centre grid turns every
-    # level boundary (deck 5 m next to road -0.4 m) into a steep 4 m RAMP;
-    # a track climbs it and the robot topples sideways. Where neighbour dz
-    # exceeds WALL_TH, add a VERTICAL quad standing at the cell boundary
-    # from the low height to the high height. The robot bumps the cliff and
-    # stops instead of ramping up (deck edges are drops it must not cross).
-    # Additive: the smooth ramp stays underneath so the surface has no gap;
-    # gentle slopes (< WALL_TH per cell) keep their smooth drivable ramp.
-    Hf = verts[:, 2].reshape(nx, ny)          # link-frame heights
+    Hf = verts[:, 2].reshape(nx, ny)
     CXv = verts[:, 0].reshape(nx, ny)
     CYv = verts[:, 1].reshape(nx, ny)
     s = STEP / 2.0
