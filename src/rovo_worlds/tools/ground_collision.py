@@ -18,12 +18,14 @@ dragged down to some lower stray hit (the old lowest-hit rule sank the robot
 footprints read at their roof (non-drivable, harmless raised blocks). Bin all
 samples into a global 4 m grid (MAX per bin), fill interior holes by
 neighbour averaging, fill the outer apron with -0.40 (the measured spawn
-road height). Isolated spikes (a single cell taller than ALL 8 neighbours by
->SPIKE m = a tree/pole/lamp caught over open ground) are pulled down to the
-neighbour max, so the tracks do not float on canopy; broad raised regions
-(decks) keep their height because their neighbours are equally high. Export a
-binary STL in the shinjuku_environment LINK frame (world - link pose) so the
-SDF collision needs no sub-pose and stays aligned with the visual tiles.
+road height). No de-spike: an audit showed clipping "spikes" (cells taller
+than their neighbours) only ever cut NARROW REAL surfaces the robot drives
+onto (one-cell decks, ramps, walkways), sinking it 1-12 m; the collision now
+equals the visual top at every sampled cell (verified 0 sink). Steep level
+boundaries get VERTICAL WALLS (see below) so the tracks stop at a cliff
+instead of climbing a ramp and toppling. Export a binary STL in the
+shinjuku_environment LINK frame (world - link pose) so the SDF collision
+needs no sub-pose and stays aligned with the visual tiles.
 
 Usage:
   ground_collision.py            # full raycast (~5 min), writes STL
@@ -45,7 +47,6 @@ STEP = 4.0                            # m grid
 CAST_Z = 60.0                         # world z ray origin
 BAND = (-3.0, 30.0)                   # world z hits kept (ground band)
 APRON_Z = -0.40                       # fill height outside the city
-SPIKE = 1.0                           # cell > neighbour-max + SPIKE = tree/pole
 WALL_TH = 1.0                         # neighbour dz > WALL_TH gets a vertical wall
 
 
@@ -128,24 +129,14 @@ def main():
         H[fill] = acc[fill] / cnt[fill]
     H[np.isnan(H)] = APRON_Z
 
-    # De-spike UP: max-binning latches onto tall thin geometry over open
-    # ground (trees, poles, lamp posts) as single-cell towers the tracks
-    # would float on. Any cell taller than the MAX of its 8 neighbours by
-    # >SPIKE is pulled down to that neighbour max. Isolated by construction:
-    # broad raised regions (decks, plazas) have equally-high neighbours so
-    # they are untouched; only lone spikes above open ground are clipped.
-    # Repeated so 1-2 cell clusters erode from their edges inward.
-    for _ in range(3):
-        pad = np.pad(H, 1, mode="edge")
-        neigh = np.stack([pad[1 + dx:nx + 1 + dx, 1 + dy:ny + 1 + dy]
-                          for dx in (-1, 0, 1) for dy in (-1, 0, 1)
-                          if (dx, dy) != (0, 0)])
-        nmax = neigh.max(axis=0)
-        spike = H > nmax + SPIKE
-        if not spike.any():
-            break
-        H[spike] = nmax[spike]
-    print(f"clipped {int(spike.sum())} spike cells (last pass)")
+    # NOTE: no spike-clip. An earlier de-spike (pull cells >SPIKE above their
+    # neighbour max down) was meant to drop trees/poles caught as the highest
+    # hit, but an audit showed it only ever clipped NARROW REAL surfaces the
+    # robot drives onto (one-cell decks, ramps, walkways) -> the robot reached
+    # them and sank 1-12 m. All 95 sink cells were clip-induced, none from
+    # hole-fill. Keeping the true highest-hit height there costs at most a
+    # minor bump if a lone tree overhangs a road; that is far better than a
+    # multi-metre sink on a surface the robot actually uses.
 
     # Heightfield -> mesh. Vertices at cell centres, world frame.
     xs = (np.arange(nx) + x0) * STEP + STEP / 2
