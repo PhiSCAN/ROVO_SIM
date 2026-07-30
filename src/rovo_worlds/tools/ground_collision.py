@@ -189,7 +189,8 @@ def main():
     # minor bump if a lone tree overhangs a road; that is far better than a
     # multi-metre sink on a surface the robot actually uses.
 
-    # Heightfield -> SMOOTH shared-vertex mesh + vertical walls at big steps.
+    # Heightfield -> SMOOTH shared-vertex mesh, with each cliff quad replaced
+    # by flat sub-quads + vertical walls.
     #
     # Smooth continuous surface (one vertex per cell centre, quads between)
     # gives smooth track motion -- a flat-top per-cell mesh turns every
@@ -197,9 +198,24 @@ def main():
     # step the tracks bump and deflect on (no smooth movement). The price of
     # smoothness is a mild interpolation sag between cell centres near a
     # level step (~0.2-0.3 m dip), a 4 m-resolution limit; the big sinks are
-    # already gone (highest-hit, no clip). At real level boundaries
-    # (neighbour dz > WALL_TH) add a VERTICAL wall so the tracks stop at the
-    # cliff instead of climbing the smoothed ramp and toppling.
+    # already gone (highest-hit, no clip).
+    #
+    # A quad whose 4 corner cells span more than WALL_TH is a real level
+    # boundary and CANNOT stay smooth: interpolating a >1 m drop across one
+    # 4 m quad yields a 40-84 deg ramp the tracks climb. An earlier version
+    # added a vertical wall there but LEFT the ramp in place, so every cliff
+    # carried two coincident surfaces -- the contact set flipped between a
+    # horizontal-ish and a vertical normal at the same XY each step, spiking
+    # the IMU and wrecking odometry (~10k such sites map-wide). Those quads
+    # are now REPLACED: 4 flat sub-quads (one per corner cell, covering that
+    # corner's quadrant) joined by vertical walls on the internal seams. So
+    # near a cliff every face is horizontal or vertical, and everywhere else
+    # slope is bounded by atan(WALL_TH * sqrt(2) / STEP) = 19.5 deg (the bound
+    # is diagonal: one triangle can carry WALL_TH/STEP in x and in y at once,
+    # so it is not 14 deg). Stepped quads meet
+    # neighbouring stepped quads exactly (shared corner heights); against a
+    # smooth quad the seam is a zero-width vertical crack of at most WALL_TH,
+    # which no downward contact can fall through.
     xs = (np.arange(nx) + x0) * STEP + STEP / 2
     ys = (np.arange(ny) + y0) * STEP + STEP / 2
     gx, gy = np.meshgrid(xs, ys, indexing="ij")
@@ -213,45 +229,82 @@ def main():
     Hf = verts[:, 2].reshape(nx, ny)
     CXv = verts[:, 0].reshape(nx, ny)
     CYv = verts[:, 1].reshape(nx, ny)
-    s = STEP / 2.0
-    extra_v, extra_f = [], []
 
-    def add_walls(hi, lo, xlo, ylo, xhi, yhi):
-        n0 = nx * ny + sum(len(v) for v in extra_v)
-        zlo = np.minimum(Hf[hi], Hf[lo]); zhi = np.maximum(Hf[hi], Hf[lo])
-        p = len(np.atleast_1d(zlo))
+    z00 = Hf[:-1, :-1]; z10 = Hf[1:, :-1]
+    z01 = Hf[:-1, 1:];  z11 = Hf[1:, 1:]
+    span = (np.maximum(np.maximum(z00, z10), np.maximum(z01, z11))
+            - np.minimum(np.minimum(z00, z10), np.minimum(z01, z11)))
+    stepq = span > WALL_TH
+    smooth = ~stepq.ravel()
+    faces = [f[smooth] for f in faces]
+
+    extra_v, extra_f = [], []
+    nv = [nx * ny]
+
+    def _quad(p0, p1, p2, p3):
+        """Append a quad (4 own vertices, 2 tris) per row of the inputs."""
+        p = len(p0)
+        if p == 0:
+            return
         v = np.empty((p * 4, 3))
-        v[0::4] = np.column_stack([xlo, ylo, zlo])
-        v[1::4] = np.column_stack([xhi, yhi, zlo])
-        v[2::4] = np.column_stack([xhi, yhi, zhi])
-        v[3::4] = np.column_stack([xlo, ylo, zhi])
-        base = n0 + np.arange(p) * 4
+        v[0::4] = p0; v[1::4] = p1; v[2::4] = p2; v[3::4] = p3
+        base = nv[0] + np.arange(p) * 4
+        nv[0] += p * 4
         extra_v.append(v)
         extra_f.append(np.column_stack([base, base + 1, base + 2]))
         extra_f.append(np.column_stack([base, base + 2, base + 3]))
 
-    m = np.abs(Hf[:-1, :] - Hf[1:, :]) > WALL_TH        # +x steps
-    if m.any():
-        ii, jj = np.where(m)
-        xb = (CXv[ii, jj] + CXv[ii + 1, jj]) / 2
-        add_walls((ii, jj), (ii + 1, jj),
-                  xb, CYv[ii, jj] - s, xb, CYv[ii, jj] + s)
-    m = np.abs(Hf[:, :-1] - Hf[:, 1:]) > WALL_TH        # +y steps
-    if m.any():
-        ii, jj = np.where(m)
-        yb = (CYv[ii, jj] + CYv[ii, jj + 1]) / 2
-        add_walls((ii, jj), (ii, jj + 1),
-                  CXv[ii, jj] - s, yb, CXv[ii, jj] + s, yb)
+    def add_flat(xa, xb, ya, yb, z):
+        _quad(np.column_stack([xa, ya, z]), np.column_stack([xb, ya, z]),
+              np.column_stack([xb, yb, z]), np.column_stack([xa, yb, z]))
+
+    def add_wall(xa, ya, xb, yb, za, zb):
+        """Vertical wall along segment (xa,ya)-(xb,yb) spanning za..zb.
+        Rows under 1 mm tall are dropped: they carry no contact and STL is
+        float32, so a sub-mm wall collapses to a degenerate (NaN-normal) tri."""
+        k = np.abs(za - zb) > 1e-3
+        xa, ya, xb, yb = xa[k], ya[k], xb[k], yb[k]
+        lo = np.minimum(za[k], zb[k]); hi = np.maximum(za[k], zb[k])
+        _quad(np.column_stack([xa, ya, lo]), np.column_stack([xb, yb, lo]),
+              np.column_stack([xb, yb, hi]), np.column_stack([xa, ya, hi]))
+
+    qx0 = CXv[:-1, :-1][stepq]; qx1 = CXv[1:, :-1][stepq]
+    qy0 = CYv[:-1, :-1][stepq]; qy1 = CYv[:-1, 1:][stepq]
+    qxm = (qx0 + qx1) / 2; qym = (qy0 + qy1) / 2
+    a00 = z00[stepq]; a10 = z10[stepq]; a01 = z01[stepq]; a11 = z11[stepq]
+
+    add_flat(qx0, qxm, qy0, qym, a00)       # corner (i,   j  )
+    add_flat(qxm, qx1, qy0, qym, a10)       # corner (i+1, j  )
+    add_flat(qx0, qxm, qym, qy1, a01)       # corner (i,   j+1)
+    add_flat(qxm, qx1, qym, qy1, a11)       # corner (i+1, j+1)
+
+    add_wall(qxm, qy0, qxm, qym, a00, a10)  # x seam, low  y half
+    add_wall(qxm, qym, qxm, qy1, a01, a11)  # x seam, high y half
+    add_wall(qx0, qym, qxm, qym, a00, a01)  # y seam, low  x half
+    add_wall(qxm, qym, qx1, qym, a10, a11)  # y seam, high x half
 
     if extra_v:
         verts = np.vstack([verts] + extra_v)
         faces = faces + extra_f
-    n_walls = sum(len(f) for f in extra_f) // 2
     faces = np.concatenate(faces)
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+
+    # Invariant: no climbable ramp survives. Every face is either near-vertical
+    # (a step wall) or within atan(WALL_TH / STEP) of horizontal.
+    # Worst case is a diagonal gradient (e.g. z00=0, z10=WALL_TH, z11=0 gives
+    # WALL_TH/STEP in both x and y), hence the sqrt(2).
+    up = np.abs(mesh.face_normals[:, 2])
+    ramp = np.degrees(np.arccos(np.clip(up[up > 0.1], 0, 1)))
+    limit = np.degrees(np.arctan(WALL_TH * np.sqrt(2) / STEP))
+    if ramp.size and ramp.max() > limit + 1.0:
+        raise SystemExit(f"ERROR: max ground slope {ramp.max():.1f} deg "
+                         f"exceeds limit {limit:.1f} deg")
+
     mesh.export(OUT)
     print(f"wrote {OUT}: {len(verts)} verts, {len(faces)} tris "
-          f"({n_walls} step walls), link-frame z range "
+          f"({int(stepq.sum())} cliff quads rebuilt as flat+wall, "
+          f"max ground slope {ramp.max():.1f} deg <= {limit:.1f}), "
+          f"link-frame z range "
           f"[{verts[:, 2].min():.2f}, {verts[:, 2].max():.2f}]")
 
 

@@ -96,10 +96,15 @@
              raycasts the visual tiles on a 4 m grid and takes the HIGHEST
              ground-like hit per cell (an earlier lowest-hit rule dragged
              raised deck tops ~2 m below their true height, sinking the robot,
-             e.g. world (53,366) true 2.75). Same link frame as the visual
-             tiles => no sub-pose. velodyne is a gpu_lidar (raycasts VISUAL,
-             not this). RTF is bounded by the RGBD camera, not collision tris
-             (lite 53k == full 196k measured identical), so keep realsense off. -->
+             e.g. world (53,366) true 2.75). Cliff quads (corner span > 1 m)
+             are flat sub-quads + vertical walls, so no face is steeper than
+             19.5 deg outside a wall; the previous build left the smooth ramp
+             INSIDE each wall, giving two coincident surfaces per cliff and
+             contact-normal flapping that spiked the IMU and broke odometry.
+             Same link frame as the visual tiles => no sub-pose. velodyne is a
+             gpu_lidar (raycasts VISUAL, not this). RTF is bounded by the RGBD
+             camera, not collision tris (lite 53k == full 196k measured
+             identical), so keep realsense off. -->
         <collision name="collision">
           <geometry>
             <mesh>
