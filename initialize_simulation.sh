@@ -1,5 +1,5 @@
 #!/bin/bash
-# initialize_simulation.sh [WORLD]
+# initialize_simulation.sh [WORLD] [headless]
 #
 # WORLD: empty (default) | autoware | shinjuku | warehouse | pipeline |
 #        office | orchard | solar_farm | construction
@@ -49,7 +49,14 @@ MODEL="${MODEL:-tracked}"
 # the main gz-server RTF cost). Enable: REALSENSE=true ./initialize_simulation.sh shinjuku
 REALSENSE="${REALSENSE:-false}"
 
-echo "[initialize_simulation] world=${WORLD} model=${MODEL} realsense=${REALSENSE}"
+# Headless: gz server-only, no GUI window. Also accepted as 2nd positional arg
+# (`./initialize_simulation.sh shinjuku headless`) or HEADLESS=true env.
+HEADLESS="${HEADLESS:-false}"
+case "${2:-}" in
+  headless|--headless|-s) HEADLESS=true ;;
+esac
+
+echo "[initialize_simulation] world=${WORLD} model=${MODEL} realsense=${REALSENSE} headless=${HEADLESS}"
 
 docker run \
   --privileged \
@@ -79,4 +86,5 @@ docker run \
     export RMW_IMPLEMENTATION=rmw_zenoh_cpp && \
     export ROS_DOMAIN_ID=50 && \
     exec ros2 launch rovo_gz_description sim_bringup.launch.py \
-      world:=${WORLD} model:=${MODEL} realsense:=${REALSENSE}"
+      world:=${WORLD} model:=${MODEL} realsense:=${REALSENSE} \
+      headless:=${HEADLESS}"
