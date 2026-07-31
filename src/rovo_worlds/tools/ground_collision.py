@@ -105,13 +105,21 @@ FLAT_N = 0.7                          # |normal.z| above this = walkable-ish
 MIN_COV = 0.25                        # candidate must cover this much of a cell
 # A surface is only standable if it is not roofed over. A canopy covers part
 # of a cell (the one at world (146,-90) covers 38%); a building's floor slab
-# covers all of it. So a candidate with a >=CEIL_COV surface more than
-# CEIL_GAP above it is INDOORS and ineligible -- without this the grow walked
-# into ground floors and put the robot inside buildings that the old mesh
-# correctly kept solid (world (-318,144): four stacked 100%-coverage slabs).
-# The topmost candidate always survives, so buildings still read as solid.
+# covers all of it. So a candidate with ANY >=CEIL_COV surface above it is
+# ineligible -- without this the grow walked into ground floors and put the
+# robot inside buildings the old mesh correctly kept solid (world (-318,144):
+# four stacked 100%-coverage slabs). The topmost candidate always survives,
+# so buildings still read as solid.
+#
+# CEIL_GAP is only a tolerance for "above", NOT a headroom allowance: an
+# earlier 1.5 m value excluded slabs high overhead while ADMITTING the ones
+# 0.25-1.5 m up, which is the worst case -- the robot cannot fit under them
+# and ends up standing 1.5 m below a road that covers it, buried in the
+# surface (2291 such cells map-wide). Keep it just large enough that one
+# surface's own residue cannot roof itself.
 CEIL_COV = 0.8
-CEIL_GAP = 1.5
+CEIL_GAP = 0.15
+OVERLAP_TH = 0.5                      # sub-cell overlap that splits two bands
 CLIMB = WALL_TH                       # max step the region-grow may cross
 SEED_XY = (0.099, 467.590)            # spawn: known street level
 CX0, CY0 = -175, -155                 # grid origin in cell units (generous)
@@ -181,14 +189,30 @@ def cell_candidates(occ_c, zsum_c, zcnt_c):
     bands = bands[(zb >= GROUND_LO) & (zb <= GROUND_HI)]
     if not len(bands):
         return []
+    # Contiguity alone does NOT mean one surface. A road 1.16 m above a lower
+    # deck lands in consecutive 0.5 m bands, and merging them averaged the two
+    # into one candidate half a metre BELOW the road -- the robot then rested
+    # on collision that sat under the visual road and looked sunk into it
+    # (world (174,331): bands 4.17/4.83/5.33 fused to 4.79 vs a 5.33 road).
+    # Tell them apart by WHICH sub-cells each band occupies: one sloped
+    # surface puts a given sub-cell at exactly one height, so adjacent bands
+    # of it are disjoint, while two stacked surfaces occupy the same sub-cells
+    # twice. Overlap therefore means "separate surface", so split there.
     out = []
     run = [bands[0]]
+    run_mask = int(occ_c[bands[0]])
     for b in bands[1:]:
-        if b == run[-1] + 1:
+        mb = int(occ_c[b])
+        inter = POPCNT[run_mask & mb]
+        smaller = min(POPCNT[run_mask], POPCNT[mb])
+        if b == run[-1] + 1 and (smaller == 0
+                                 or inter / float(smaller) <= OVERLAP_TH):
             run.append(b)
+            run_mask |= mb
         else:
             out.append(run)
             run = [b]
+            run_mask = mb
     out.append(run)
     res = []
     for run in out:
