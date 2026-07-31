@@ -8,33 +8,47 @@ to RTF ~0.02 (tracked-robot contacts vs dense noisy mesh). A coarse ground
 heightfield keeps real slopes while the robot only ever touches a handful
 of large, near-flat triangles.
 
-Method: per visual tile, raycast straight down on a 4 m grid from world
-z=+60, keep all hits, restrict to band z in (-3, +30) (excludes the stray
-underground geometry at z_min=-23), take the HIGHEST hit per cell. On open
-drivable ground (road/deck, clear sky above) the highest hit IS the surface
-the robot stands on; a raised plaza reads at its true top instead of being
-dragged down to some lower stray hit (the old lowest-hit rule sank the robot
-~2 m into deck tops, e.g. world (53,366) true 2.75 read as 0.44). Building
-footprints read at their roof (non-drivable, harmless raised blocks). Bin all
-samples into a global 4 m grid (MAX per bin), fill interior holes by
-neighbour averaging, fill the outer apron with -0.40 (the measured spawn
-road height), then FILL-SINKS: raise every enclosed bowl (a patch lower than
-its lowest rim out to the map edge) up to that rim, so the robot cannot drop
-into any hole/gap on drivable ground; capped at a drivable ceiling so
-building-walled voids stay low instead of becoming plateaus. No de-spike: an
-audit showed clipping "spikes" (cells taller
-than their neighbours) only ever cut NARROW REAL surfaces the robot drives
-onto (one-cell decks, ramps, walkways), sinking it 1-12 m; the collision now
-equals the visual top at every sampled cell (verified 0 sink). Steep level
-boundaries get VERTICAL WALLS (see below) so the tracks stop at a cliff
-instead of climbing a ramp and toppling. Export a binary STL in the
-shinjuku_environment LINK frame (world - link pose) so the SDF collision
-needs no sub-pose and stays aligned with the visual tiles.
+Method: area-sample the walkable-ish (|normal.z| > 0.7) faces of every visual
+tile, ~4 samples/m2, and bin them into a 4 m grid by 0.5 m height bands,
+recording which of each cell's 16 sub-cells a band occupies. Contiguous bands
+merge into candidate SURFACES carrying a real coverage fraction, so a cell
+knows the difference between a road under it and a 1.2 m railing clipping its
+corner. Restrict candidates to the drivable band z in (-3, +30) (excludes the
+stray underground geometry at z_min=-23), drop anything roofed over by a
+>=80%-coverage slab (that is a building interior, not a street), then choose
+one surface per cell by REACHABILITY: Dijkstra outward from the spawn cell,
+ordered by accumulated |dz|, taking at each neighbour the candidate closest in
+height within one CLIMB step. Cells the grow never reaches keep their highest
+candidate, so buildings stay solid blocks the robot cannot drive into.
+
+This replaced a single downward raycast per cell that kept the HIGHEST hit:
+55% of cells were then decided by one ray, so any object that ray clipped
+became a solid 4x4 m block on open road -- an 8 m tower at world (146,-90)
+from a canopy, a 1.25 m wall at (210,-70) from a railing covering 10% of its
+cell. Both are invisible to the velodyne (it raycasts the VISUAL), so the
+robot drove into walls that were not there and lost odometry. Highest-hit was
+itself a fix for lowest-hit, which sank the robot ~2 m into deck tops (world
+(53,366) true 2.75 read as 0.44); no cell-local rule can satisfy both, which
+is why the choice is now made by connectivity instead of by height.
+
+Then fill interior holes by neighbour averaging, fill the outer apron with
+-0.40 (the measured spawn road height), and FILL-SINKS: raise every enclosed
+bowl (a patch lower than its lowest rim out to the map edge) up to that rim,
+so the robot cannot drop into any hole/gap on drivable ground; capped at a
+drivable ceiling so building-walled voids stay low instead of becoming
+plateaus. No de-spike: an audit showed clipping "spikes" (cells taller than
+their neighbours) only ever cut NARROW REAL surfaces the robot drives onto
+(one-cell decks, ramps, walkways), sinking it 1-12 m. Steep level boundaries
+get VERTICAL WALLS and lose their ramp (see below) so the tracks stop at a
+cliff instead of climbing it. Export a binary STL in the shinjuku_environment
+LINK frame (world - link pose) so the SDF collision needs no sub-pose and
+stays aligned with the visual tiles.
 
 Usage:
-  ground_collision.py            # full raycast (~5 min), writes STL
-  ground_collision.py cache.npz  # reuse a saved scan (pts: N x [x y z])
+  ground_collision.py             # full tile scan (~25 s), writes STL
+  ground_collision.py layers.npz  # reuse a saved layer scan
 """
+import collections
 import glob
 import heapq
 import os
@@ -49,68 +63,222 @@ OUT = os.path.join(HERE, "..", "meshes", "shinjuku_ground_collision.stl")
 
 OFF = np.array([50.28, 9.45, 7.46])   # link pose: world = mesh + OFF
 STEP = 4.0                            # m grid
-CAST_Z = 60.0                         # world z ray origin
-BAND = (-3.0, 30.0)                   # world z hits kept (ground band)
 APRON_Z = -0.40                       # fill height outside the city
 WALL_TH = 1.0                         # neighbour dz > WALL_TH gets a vertical wall
-FILL_CEIL = 10.0                      # fill-sinks only up to this drivable height
+FILL_CEIL = 10.0                     # fill-sinks only up to this drivable height
+
+# Layer scan / surface selection.
+#
+# The old scan cast ONE ray per 4 m cell and kept its highest hit, so 55% of
+# cells were decided by a single ray: any object that ray clipped -- a canopy
+# 8 m up, a 1.2 m wide railing -- was promoted to a solid 4x4 m block sitting
+# on open road. The robot then hit a wall that the velodyne (which raycasts
+# the VISUAL) cannot see, deflected, and lost odometry.
+#
+# Instead measure how much of each cell a surface actually COVERS: sample the
+# horizontal-ish faces by area, bin into 0.5 m height bands, and record which
+# of the cell's 16 sub-cells each band occupies. Contiguous bands merge into
+# one candidate surface with a real coverage fraction.
+#
+# Choosing among candidates cannot be done cell-locally -- that is the trap
+# this file fell into twice. Highest-hit puts the canopy on the road; lowest
+# hit puts the street under a raised deck (it once dragged deck tops 2 m down,
+# e.g. world (53,366) true 2.75); median splits the difference and is wrong
+# for both. The surface the robot drives on is defined by CONNECTIVITY, not by
+# height: region-grow from the spawn cell and, at each neighbour, take the
+# candidate closest in height to the cell we came from, within one CLIMB step.
+# Street stays street, a deck reached by a ramp stays a deck, and a canopy 8 m
+# overhead is never within a step of anything. Cells the grow never reaches
+# (building interiors, sealed voids) keep their highest candidate, so
+# buildings stay solid and the robot cannot drive into one.
+SUB = 4                               # 4x4 = 16 sub-cells per cell (1 m each)
+DENS = 4.0                            # surface samples per m2
+BAND = 0.5                            # height band for grouping samples
+Z_LO, Z_HI = -10.0, 32.0              # band range
+# Drivable band. Shinjuku has stray geometry down to z=-23 and a genuine
+# sub-street level; the original scan excluded both with a hard (-3, 30) hit
+# filter and dropping it let the grow settle 13785 cells onto underground
+# floors (world (-366,404) went 26.29 -> -7.23). Candidates outside this band
+# are not surfaces the robot is ever meant to stand on.
+GROUND_LO, GROUND_HI = -3.0, 30.0
+FLAT_N = 0.7                          # |normal.z| above this = walkable-ish
+MIN_COV = 0.25                        # candidate must cover this much of a cell
+# A surface is only standable if it is not roofed over. A canopy covers part
+# of a cell (the one at world (146,-90) covers 38%); a building's floor slab
+# covers all of it. So a candidate with a >=CEIL_COV surface more than
+# CEIL_GAP above it is INDOORS and ineligible -- without this the grow walked
+# into ground floors and put the robot inside buildings that the old mesh
+# correctly kept solid (world (-318,144): four stacked 100%-coverage slabs).
+# The topmost candidate always survives, so buildings still read as solid.
+CEIL_COV = 0.8
+CEIL_GAP = 1.5
+CLIMB = WALL_TH                       # max step the region-grow may cross
+SEED_XY = (0.099, 467.590)            # spawn: known street level
+CX0, CY0 = -175, -155                 # grid origin in cell units (generous)
+NXC, NYC = 340, 350
 
 
-def scan_tiles():
-    pts = []
+NB = int(round((Z_HI - Z_LO) / BAND))
+POPCNT = np.array([bin(i).count("1") for i in range(1 << (SUB * SUB))],
+                  dtype=np.uint8)
+
+
+def scan_layers():
+    """Area-sample every tile's walkable-ish faces into per-cell height bands.
+
+    Returns (occ, zsum, zcnt), each shaped (NXC, NYC, NB). occ[i,j,b] is a
+    bitmask of which of the cell's 16 sub-cells that band occupies, so the
+    coverage of a surface is a real area fraction rather than a ray count.
+    """
+    occ = np.zeros(NXC * NYC * NB, dtype=np.uint16)
+    zsum = np.zeros(NXC * NYC * NB, dtype=np.float64)
+    zcnt = np.zeros(NXC * NYC * NB, dtype=np.int32)
     for path in sorted(glob.glob(TILES)):
         m = trimesh.load(path, force="mesh")
         if m.is_empty:
             continue
         m = trimesh.Trimesh(vertices=m.vertices + OFF, faces=m.faces,
                             process=False)
-        xmin, ymin = m.bounds[0][:2]
-        xmax, ymax = m.bounds[1][:2]
-        xs = np.arange(xmin + STEP / 2, xmax, STEP)
-        ys = np.arange(ymin + STEP / 2, ymax, STEP)
-        if len(xs) == 0 or len(ys) == 0:
+        flat = np.abs(m.face_normals[:, 2]) > FLAT_N
+        if not flat.any():
             continue
-        gx, gy = np.meshgrid(xs, ys)
-        origins = np.column_stack([gx.ravel(), gy.ravel(),
-                                   np.full(gx.size, CAST_Z)])
-        dirs = np.tile([0.0, 0.0, -1.0], (len(origins), 1))
-        locs, ridx, _ = m.ray.intersects_location(
-            origins, dirs, multiple_hits=True)
-        if len(locs) == 0:
+        surf = trimesh.Trimesh(vertices=m.vertices, faces=m.faces[flat],
+                               process=False)
+        n = int(surf.area * DENS)
+        if n < 1:
             continue
-        z = locs[:, 2]
-        keep = (z > BAND[0]) & (z < BAND[1])
-        z, ridx = z[keep], ridx[keep]
-        ground = np.full(len(origins), np.nan)
-        order = np.argsort(z)             # ascending: last write = max (highest)
-        ground[ridx[order]] = z[order]
-        ok = ~np.isnan(ground)
-        pts.append(np.column_stack(
-            [origins[ok, 0], origins[ok, 1], ground[ok]]))
-        print(f"  {os.path.basename(path):>14}: {int(ok.sum())} cells")
-    return np.vstack(pts)
+        p, _ = trimesh.sample.sample_surface(surf, n)
+        ci = np.floor(p[:, 0] / STEP).astype(int) - CX0
+        cj = np.floor(p[:, 1] / STEP).astype(int) - CY0
+        b = np.floor((p[:, 2] - Z_LO) / BAND).astype(int)
+        ok = ((ci >= 0) & (ci < NXC) & (cj >= 0) & (cj < NYC)
+              & (b >= 0) & (b < NB))
+        if not ok.any():
+            continue
+        p, ci, cj, b = p[ok], ci[ok], cj[ok], b[ok]
+        sx = np.clip(((p[:, 0] - (ci + CX0) * STEP) / (STEP / SUB)),
+                     0, SUB - 1).astype(int)
+        sy = np.clip(((p[:, 1] - (cj + CY0) * STEP) / (STEP / SUB)),
+                     0, SUB - 1).astype(int)
+        bit = (np.uint16(1) << (sx * SUB + sy).astype(np.uint16))
+        idx = (ci * NYC + cj) * NB + b
+        np.bitwise_or.at(occ, idx, bit)
+        np.add.at(zsum, idx, p[:, 2])
+        np.add.at(zcnt, idx, 1)
+        print(f"  {os.path.basename(path):>14}: {n} samples")
+    shape = (NXC, NYC, NB)
+    return occ.reshape(shape), zsum.reshape(shape), zcnt.reshape(shape)
+
+
+def cell_candidates(occ_c, zsum_c, zcnt_c):
+    """Merge contiguous occupied bands of one cell into candidate surfaces.
+
+    Returns a list of (height, coverage) ordered low to high. Coverage is the
+    fraction of the cell's 16 sub-cells the merged surface occupies.
+    """
+    bands = np.flatnonzero(occ_c)
+    zb = Z_LO + (bands + 0.5) * BAND
+    bands = bands[(zb >= GROUND_LO) & (zb <= GROUND_HI)]
+    if not len(bands):
+        return []
+    out = []
+    run = [bands[0]]
+    for b in bands[1:]:
+        if b == run[-1] + 1:
+            run.append(b)
+        else:
+            out.append(run)
+            run = [b]
+    out.append(run)
+    res = []
+    for run in out:
+        mask = np.bitwise_or.reduce(occ_c[run])
+        cov = POPCNT[mask] / float(SUB * SUB)
+        cnt = zcnt_c[run].sum()
+        if cnt == 0:
+            continue
+        res.append((zsum_c[run].sum() / cnt, cov))
+    return res
+
+
+def pick_reachable(occ, zsum, zcnt):
+    """Choose one surface per cell by growing outward from the spawn cell."""
+    cands = {}
+    for i, j in zip(*np.nonzero(occ.any(axis=2))):
+        allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
+        c = [(z, cov) for z, cov in allc
+             if cov >= MIN_COV
+             and not any(z2 > z + CEIL_GAP and cov2 >= CEIL_COV
+                         for z2, cov2 in allc)]
+        if c:
+            cands[(i, j)] = c
+    H = np.full((NXC, NYC), np.nan)
+
+    si = int(np.floor(SEED_XY[0] / STEP)) - CX0
+    sj = int(np.floor(SEED_XY[1] / STEP)) - CY0
+    if (si, sj) not in cands:
+        raise SystemExit(f"ERROR: spawn cell {SEED_XY} has no candidate "
+                         f"surface; cannot seed the region grow")
+    # Seed on the lowest substantial surface at spawn: that is the street.
+    seed = min((c for c in cands[(si, sj)] if c[1] >= 0.5),
+               key=lambda c: c[0], default=cands[(si, sj)][0])
+
+    # Dijkstra on accumulated |dz| from the seed, NOT plain BFS. Shinjuku has
+    # a lower level under the streets, joined to them by real ramps, so many
+    # cells are legitimately reachable at two heights and a FIFO grow lets
+    # whichever it happens to touch first win -- that flooded the lower level
+    # outward and dropped world (0,0) from 6.06 to -0.61, a 6.7 m pit in an
+    # open road. Ordering by total climb means a cell reachable both as street
+    # (flat, near-zero cost) and via a 6 m ramp down keeps the street; the
+    # descent still wins wherever it is genuinely the only way in.
+    pq = [(0.0, si, sj, seed[0])]
+    while pq:
+        cost, i, j, h = heapq.heappop(pq)
+        if not np.isnan(H[i, j]):
+            continue
+        H[i, j] = h
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = i + di, j + dj
+            if not (0 <= a < NXC and 0 <= b < NYC):
+                continue
+            if not np.isnan(H[a, b]) or (a, b) not in cands:
+                continue
+            for z, _cov in cands[(a, b)]:
+                d = abs(z - h)
+                if d <= CLIMB:
+                    heapq.heappush(pq, (cost + d, a, b, z))
+
+    # Anything the grow could not reach (building interiors, sealed voids)
+    # keeps its highest surface, so it stays a solid block.
+    n_reach = int(np.isfinite(H).sum())
+    for (i, j), c in cands.items():
+        if np.isnan(H[i, j]):
+            H[i, j] = max(c, key=lambda t: t[0])[0]
+    print(f"surfaces: {len(cands)} cells with candidates, "
+          f"{n_reach} reached by grow, {len(cands) - n_reach} left solid")
+    return H
 
 
 def main():
+    cache = os.path.join(HERE, "shinjuku_layers.npz")
     if len(sys.argv) > 1:
-        pts = np.load(sys.argv[1])["pts"]
-        print(f"loaded cached scan: {len(pts)} samples")
+        d = np.load(sys.argv[1])
+        occ, zsum, zcnt = d["occ"], d["zsum"], d["zcnt"]
+        print(f"loaded cached layer scan: {sys.argv[1]}")
     else:
-        pts = scan_tiles()
-        print(f"scanned: {len(pts)} samples")
-        cache = os.path.join(HERE, "shinjuku_scan.npz")
-        np.savez_compressed(cache, pts=pts)
+        occ, zsum, zcnt = scan_layers()
+        np.savez_compressed(cache, occ=occ, zsum=zsum, zcnt=zcnt)
         print(f"cached scan -> {cache} (reuse: ground_collision.py {cache})")
 
-    # Global 4 m bins, MAX z per bin (per-tile grids overlap and are not
-    # mutually aligned, so re-bin instead of trusting sample positions).
-    ix = np.floor(pts[:, 0] / STEP).astype(int)
-    iy = np.floor(pts[:, 1] / STEP).astype(int)
-    x0, y0 = ix.min(), iy.min()
-    nx, ny = ix.max() - x0 + 1, iy.max() - y0 + 1
-    H = np.full((nx, ny), np.nan)
-    order = np.argsort(pts[:, 2])          # ascending: last write = max
-    H[ix[order] - x0, iy[order] - y0] = pts[order, 2]
+    H = pick_reachable(occ, zsum, zcnt)
+
+    # Crop the generous allocation to the cells that actually carry geometry.
+    live = np.isfinite(H)
+    ii, jj = np.where(live)
+    lo_i, hi_i, lo_j, hi_j = ii.min(), ii.max() + 1, jj.min(), jj.max() + 1
+    H = H[lo_i:hi_i, lo_j:hi_j]
+    x0, y0 = CX0 + lo_i, CY0 + lo_j
+    nx, ny = H.shape
     print(f"grid {nx} x {ny} cells ({nx*STEP:.0f} x {ny*STEP:.0f} m), "
           f"{np.isnan(H).sum()} holes")
 
