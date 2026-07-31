@@ -119,6 +119,22 @@ MIN_COV = 0.25                        # candidate must cover this much of a cell
 # surface's own residue cannot roof itself.
 CEIL_COV = 0.8
 CEIL_GAP = 0.15
+# An OVERPASS is a road with a bridge over it: the ray finds a low road, real
+# headroom, then a single thin deck. That deck covers the road just like a
+# building floor does, so the CEIL_COV roof test above deletes the road and
+# leaves only the deck -- the underpass fills solid to the deck and walls off
+# an open road the robot must drive down (world (-137,60): a 0.5 m road roofed
+# by a 6.5 m deck read as a 6.5 m wall). Keep a roofed candidate when the ONLY
+# thing over it is a single slab clearing HEADROOM (a deck the robot fits
+# under); still delete it when the roof is close (buried, cannot fit), is a
+# STACK of slabs (a building's floors, never drive-through), or sits above
+# OVERPASS_MAX (a building's single roof slab, not a bridge -- without this
+# cap a lone 25 m roof read as an overpass and opened the building footprint).
+# A deck's own bottom and top faces are two candidates ~1 m apart, so merge
+# slabs within SLAB_TH before counting them as one structure.
+HEADROOM = 2.5                       # a lone deck this far up still clears
+OVERPASS_MAX = 12.0                  # a deck higher than this is a building roof
+SLAB_TH = 2.0                        # slabs within this merge into one deck
 OVERLAP_TH = 0.5                      # sub-cell overlap that splits two bands
 CLIMB = WALL_TH                       # max step the region-grow may cross
 SEED_XY = (0.099, 467.590)            # spawn: known street level
@@ -225,15 +241,31 @@ def cell_candidates(occ_c, zsum_c, zcnt_c):
     return res
 
 
+def _standable(z, allc):
+    """True if a robot can stand on surface z, not roofed by a building.
+
+    Open sky above -> yes. A STACK of covering slabs (>=2 after merging a
+    deck's twin faces) -> a building, no. A single covering slab -> yes only
+    if it clears HEADROOM (an overpass deck the robot drives under), no if it
+    is close overhead (the robot would be buried under it).
+    """
+    above = sorted(z2 for z2, cov2 in allc
+                   if z2 > z + CEIL_GAP and cov2 >= CEIL_COV)
+    if not above:
+        return True
+    groups = 1 + sum(hi - lo > SLAB_TH for lo, hi in zip(above, above[1:]))
+    if groups >= 2:
+        return False
+    return above[0] - z > HEADROOM and above[-1] <= OVERPASS_MAX
+
+
 def pick_reachable(occ, zsum, zcnt):
     """Choose one surface per cell by growing outward from the spawn cell."""
     cands = {}
     for i, j in zip(*np.nonzero(occ.any(axis=2))):
         allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
         c = [(z, cov) for z, cov in allc
-             if cov >= MIN_COV
-             and not any(z2 > z + CEIL_GAP and cov2 >= CEIL_COV
-                         for z2, cov2 in allc)]
+             if cov >= MIN_COV and _standable(z, allc)]
         if c:
             cands[(i, j)] = c
     H = np.full((NXC, NYC), np.nan)
