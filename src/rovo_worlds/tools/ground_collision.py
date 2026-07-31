@@ -137,6 +137,7 @@ OVERPASS_MAX = 12.0                  # a deck higher than this is a building roo
 SLAB_TH = 2.0                        # slabs within this merge into one deck
 OVERLAP_TH = 0.5                      # sub-cell overlap that splits two bands
 CLIMB = WALL_TH                       # max step the region-grow may cross
+RECLAIM_D = 6                         # search radius (cells) for a spanned road
 SEED_XY = (0.099, 467.590)            # spawn: known street level
 CX0, CY0 = -175, -155                 # grid origin in cell units (generous)
 NXC, NYC = 340, 350
@@ -310,8 +311,42 @@ def pick_reachable(occ, zsum, zcnt):
     for (i, j), c in cands.items():
         if np.isnan(H[i, j]):
             H[i, j] = max(c, key=lambda t: t[0])[0]
+
+    # Underpass reclaim. The grow assigns ONE surface per cell, so where a
+    # flyover deck's flat region reaches the cells over a road more cheaply
+    # than the road does, the deck wins and the underpass reads as a solid
+    # wall the robot cannot pass (world (-45,95): a -0.66 m road under a 6 m
+    # deck read as 6.06, a phantom wall across an open street). Pull such a
+    # cell down to its road candidate -- but ONLY when the deck actually SPANS
+    # a road: a cell at the reclaimed level exists within RECLAIM_D cells on
+    # BOTH opposite sides (in x or in y), i.e. the deck bridges two road
+    # segments. A real deck the robot drives ON does not connect two roads, so
+    # it keeps its height (verified: 366,350 / 303,353 / 142,366 untouched).
+    # Only drops between HEADROOM and OVERPASS_MAX qualify, so a tall building
+    # over a passage is never punched through.
+    def _road_near(i, j, zr, di, dj):
+        for s in range(1, RECLAIM_D + 1):
+            a, b = i + di * s, j + dj * s
+            if not (0 <= a < NXC and 0 <= b < NYC):
+                return False
+            if np.isfinite(H[a, b]) and abs(H[a, b] - zr) <= CLIMB:
+                return True
+        return False
+
+    n_reclaim = 0
+    for (i, j), c in cands.items():
+        h = H[i, j]
+        lows = [z for z, _ in c if HEADROOM < h - z <= OVERPASS_MAX]
+        if not lows:
+            continue
+        zr = max(lows)
+        if ((_road_near(i, j, zr, 1, 0) and _road_near(i, j, zr, -1, 0)) or
+                (_road_near(i, j, zr, 0, 1) and _road_near(i, j, zr, 0, -1))):
+            H[i, j] = zr
+            n_reclaim += 1
     print(f"surfaces: {len(cands)} cells with candidates, "
-          f"{n_reach} reached by grow, {len(cands) - n_reach} left solid")
+          f"{n_reach} reached by grow, {len(cands) - n_reach} left solid, "
+          f"{n_reclaim} underpass cells reclaimed")
     return H
 
 
