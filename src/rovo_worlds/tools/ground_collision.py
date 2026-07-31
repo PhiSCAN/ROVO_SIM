@@ -340,6 +340,7 @@ def main():
 
     # Interior holes: average of known 4-neighbours, repeated. Remaining
     # (outer apron, far from any geometry) gets the flat spawn-road height.
+    holes = np.isnan(H)                   # cells the grow gave no surface
     for _ in range(8):
         nanm = np.isnan(H)
         if not nanm.any():
@@ -360,14 +361,10 @@ def main():
     H[np.isnan(H)] = APRON_Z
 
     # Fill-sinks (hydrological depression fill, Planchon-Darboux / priority
-    # flood). The robot "sinks" wherever it drives onto a cell that sits in a
-    # BOWL -- a patch of ground lower than every path out of it. These are
-    # holes/gaps in the visual city (sparse or missing tiles), single-ray
-    # dropouts, or apron patches enclosed by higher deck: the highest-hit rule
-    # read them low, the smooth grid ramps down into them, and the robot drops
-    # in and disappears below the surface (e.g. world (366,350) a -1.0 cell in
-    # a 3 m deck, (54,210) a -0.7 cell in a 6 m deck). Filling every enclosed
-    # bowl up to its lowest rim removes ALL such traps map-wide in one pass:
+    # flood), applied to HOLE cells only (see the accept mask below). An
+    # apron/unreachable pocket enclosed by higher ground is a bowl the robot
+    # would drop into and disappear; filling every enclosed hole up to its
+    # lowest rim removes such traps map-wide in one pass:
     # a cell only rises if it is lower than the lowest lip it would have to
     # cross to reach the map edge. Real drivable descents keep their depth --
     # a through-road, a ramp, or a courtyard with any opening DRAINS to the
@@ -398,10 +395,17 @@ def main():
             W[a, b] = nz
             done[a, b] = True
             heapq.heappush(pq, (nz, a, b))
-    accept = W <= FILL_CEIL
+    # Only raise HOLE cells (apron / no grow surface). A cell the region-grow
+    # already put on a real drivable surface must never be lifted: the layer
+    # grow now resolves genuine low ground correctly, so filling a real sunken
+    # lot or road to its rim just floats the robot ~1 m above the visible
+    # ground it is driving on (world (-47,91): a -0.66 m road raised to 0.27,
+    # 6698 float cells map-wide). Restricting the fill to holes removes every
+    # float and reopens zero sinks (all old sink spots are grow-assigned).
+    accept = (W <= FILL_CEIL) & holes
     n_fill = int(((W - H > 1e-6) & accept).sum())
     H = np.where(accept, W, H)
-    print(f"fill-sinks: raised {n_fill} bowl cells to their rim "
+    print(f"fill-sinks: raised {n_fill} hole cells to their rim "
           f"(<= {FILL_CEIL:.0f} m)")
 
     # NOTE: no spike-clip. An earlier de-spike (pull cells >SPIKE above their
