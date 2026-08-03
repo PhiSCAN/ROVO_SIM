@@ -119,6 +119,10 @@ MIN_COV = 0.25                        # candidate must cover this much of a cell
 # surface's own residue cannot roof itself.
 CEIL_COV = 0.8
 CEIL_GAP = 0.15
+# Lattice reclaim: a road only counts as one worth reopening if it covers
+# this much of its cell BY AREA. Occupancy is not enough here -- the whole
+# point of the pass is that occupancy overstates sparse surfaces.
+LATTICE_ROAD_COV = 0.5
 # An OVERPASS is a road with a bridge over it: the ray finds a low road, real
 # headroom, then a single thin deck. That deck covers the road just like a
 # building floor does, so the CEIL_COV roof test above deletes the road and
@@ -199,8 +203,14 @@ def scan_layers():
 def cell_candidates(occ_c, zsum_c, zcnt_c):
     """Merge contiguous occupied bands of one cell into candidate surfaces.
 
-    Returns a list of (height, coverage) ordered low to high. Coverage is the
-    fraction of the cell's 16 sub-cells the merged surface occupies.
+    Returns a list of (height, coverage, area_coverage) ordered low to high.
+    Coverage is the fraction of the cell's 16 sub-cells the merged surface
+    occupies; area_coverage is the fraction of the cell its samples actually
+    cover by AREA. The two differ for a sparse surface: a band fills a
+    sub-cell if ANY sample lands in it, so beams, railings and canopy ribs
+    spread across a cell score a full 1.0 occupancy on a fraction of the area.
+    Occupancy is what the grow wants (it asks "is there something to stand
+    on"); the ceiling test wants area (it asks "am I roofed in").
     """
     bands = np.flatnonzero(occ_c)
     zb = Z_LO + (bands + 0.5) * BAND
@@ -239,7 +249,13 @@ def cell_candidates(occ_c, zsum_c, zcnt_c):
         cnt = zcnt_c[run].sum()
         if cnt == 0:
             continue
-        res.append((zsum_c[run].sum() / cnt, cov))
+        # Samples are area-uniform at DENS per m2 (scan_layers sizes each
+        # tile's draw by surface area), so the sample count over the run is a
+        # direct area measure. Clip: a surface steeper than the FLAT_N cut
+        # still has more area than footprint, and two coincident faces (a
+        # deck's top and underside) both land in the run.
+        acov = min(cnt / DENS / (STEP * STEP), 1.0)
+        res.append((zsum_c[run].sum() / cnt, cov, acov))
     return res
 
 
@@ -251,7 +267,7 @@ def _standable(z, allc):
     if it clears HEADROOM (an overpass deck the robot drives under), no if it
     is close overhead (the robot would be buried under it).
     """
-    above = sorted(z2 for z2, cov2 in allc
+    above = sorted(z2 for z2, cov2, _acov2 in allc
                    if z2 > z + CEIL_GAP and cov2 >= CEIL_COV)
     if not above:
         return True
@@ -266,7 +282,7 @@ def pick_reachable(occ, zsum, zcnt):
     cands = {}
     for i, j in zip(*np.nonzero(occ.any(axis=2))):
         allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
-        c = [(z, cov) for z, cov in allc
+        c = [(z, cov) for z, cov, _acov in allc
              if cov >= MIN_COV and _standable(z, allc)]
         if c:
             cands[(i, j)] = c
@@ -308,7 +324,8 @@ def pick_reachable(occ, zsum, zcnt):
 
     # Anything the grow could not reach (building interiors, sealed voids)
     # keeps its highest surface, so it stays a solid block.
-    n_reach = int(np.isfinite(H).sum())
+    reached = np.isfinite(H)
+    n_reach = int(reached.sum())
     for (i, j), c in cands.items():
         if np.isnan(H[i, j]):
             H[i, j] = max(c, key=lambda t: t[0])[0]
@@ -358,6 +375,63 @@ def pick_reachable(occ, zsum, zcnt):
                 H[i, j] = zr
                 n_reclaim += 1
                 break
+    # Lattice reclaim. _standable rejects a road roofed by a surface whose
+    # sub-cell OCCUPANCY reaches CEIL_COV, and occupancy cannot distinguish a
+    # solid slab from beams spanning the same cell: 16 ribs light all 16
+    # sub-cells exactly as a floor does. Such a road is dropped from cands, so
+    # the grow never reaches it, the cell falls back to its highest candidate
+    # and fills solid -- a wall across a street with open sky through it
+    # (world (82,118): a 6.03 road under a structure scoring 1.00 occupancy on
+    # 0.77 of the cell by area, sealed to 27.01, and the robot wedged INSIDE
+    # the block, unable to drive either way).
+    #
+    # Re-test those roofs by AREA and pull the road back. Deliberately a
+    # post-pass, not a fix inside _standable: feeding area coverage to the
+    # grow re-routes the Dijkstra globally (measured: 1853 cells move, 692 of
+    # them UPWARD, i.e. new walls elsewhere). Here the grow is already final,
+    # only cells it left SOLID are touched, and they can only come DOWN, so
+    # nothing that currently drives can regress. Reads a FROZEN Hl for the
+    # same reason the underpass reclaim reads Hg -- a cell reclaimed here must
+    # not seed the next one and let a pocket cascade inward.
+    Hl = H.copy()
+    n_lattice = 0
+    for (i, j), _c in cands.items():
+        if reached[i, j]:
+            continue
+        allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
+        best = None
+        for z, cov, acov in allc:
+            if cov < MIN_COV or acov < LATTICE_ROAD_COV:
+                continue
+            if _standable(z, allc):        # not the case this pass is for
+                continue
+            solid = [z2 for z2, _c2, acov2 in allc
+                     if z2 > z + CEIL_GAP and acov2 >= CEIL_COV]
+            if solid:                      # a real slab roofs it: leave solid
+                continue
+            over = sorted(z2 for z2, _c2, _a2 in allc if z2 > z + CEIL_GAP)
+            if over and over[0] - z <= HEADROOM:
+                continue                   # cannot fit under the lattice
+            if Hl[i, j] - z <= CLIMB:
+                continue                   # not sealed above it anyway
+            if best is None or z > best:
+                best = z
+        if best is None:
+            continue
+        # Only where the robot can actually reach it, and only where it leads
+        # somewhere: at least TWO 4-neighbours the grow settled within one
+        # CLIMB step of this road. One neighbour means a dead-end notch cut
+        # into a deck, which is how the previous reclaim flipped the robot --
+        # it drives in and there is no way out and no floor either side.
+        if sum(reached[i + di, j + dj]
+               and abs(Hl[i + di, j + dj] - best) <= CLIMB
+               for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1))
+               if 0 <= i + di < NXC and 0 <= j + dj < NYC) >= 2:
+            H[i, j] = best
+            n_lattice += 1
+    print(f"lattice reclaim: {n_lattice} sealed cells pulled back to a road "
+          f"roofed only by sparse structure")
+
     print(f"surfaces: {len(cands)} cells with candidates, "
           f"{n_reach} reached by grow, {len(cands) - n_reach} left solid, "
           f"{n_reclaim} underpass cells reclaimed")
