@@ -123,6 +123,23 @@ CEIL_GAP = 0.15
 # this much of its cell BY AREA. Occupancy is not enough here -- the whole
 # point of the pass is that occupancy overstates sparse surfaces.
 LATTICE_ROAD_COV = 0.5
+# Covered-street reclaim. A street running under a building podium or a
+# skywalk is roofed by a slab that IS solid (area coverage ~1.0), so the
+# lattice test above cannot help it, and the deck sits above OVERPASS_MAX so
+# the underpass reclaim will not either -- world (82,120): a 6.03 road with
+# 11 m of headroom, roofed at 17.17 and 27.01, sealed to 27.01 across a
+# 2-cell run with open road at the same height on both ends.
+#
+# Height cannot separate this from a building ground floor, so do not try:
+# gate on the STRUCTURE instead. A covered street is a SHORT sealed run
+# bridging two stretches of road that sit at the SAME level; a building
+# footprint is wider than the run bound and rarely has matching road on both
+# opposite sides. These bounds are deliberately tighter than the underpass
+# reclaim's (which additionally has the OVERPASS_MAX height cap to lean on).
+COVERED_SPAN_MAX = 2                  # max sealed cells between the two roads
+COVERED_ROAD_COV = 0.9                # the road must really be a road, by area
+COVERED_LEVEL_TOL = 0.3               # the two roads must be the same level
+MAX_REOPEN_ROUNDS = 8                 # fixed-point cap for the reopen passes
 # An OVERPASS is a road with a bridge over it: the ray finds a low road, real
 # headroom, then a single thin deck. That deck covers the road just like a
 # building floor does, so the CEIL_COV roof test above deletes the road and
@@ -393,44 +410,150 @@ def pick_reachable(occ, zsum, zcnt):
     # nothing that currently drives can regress. Reads a FROZEN Hl for the
     # same reason the underpass reclaim reads Hg -- a cell reclaimed here must
     # not seed the next one and let a pocket cascade inward.
-    Hl = H.copy()
-    n_lattice = 0
-    for (i, j), _c in cands.items():
-        if reached[i, j]:
-            continue
-        allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
-        best = None
-        for z, cov, acov in allc:
-            if cov < MIN_COV or acov < LATTICE_ROAD_COV:
+    # A covered street is reopened by the second test below. Both run to a
+    # FIXED POINT: opening one cell of a passage gives its neighbour the
+    # support the tests ask for, and a single sweep only ever peels off the
+    # first cell -- that left a wall 4 m further down the same street (the
+    # 27.01 block at world (82,120) survived while (82,118) opened). Each
+    # round reads a frozen snapshot, so within a round no cell can seed
+    # another; progress happens between rounds, never mid-sweep.
+    open_ = reached.copy()
+    Hpre = H.copy()
+    reopened = []
+    n_lattice = n_covered = 0
+    for _round in range(MAX_REOPEN_ROUNDS):
+        Hf, openf = H.copy(), open_.copy()
+
+        def _spanned(i, j, zr):
+            """Road at zr on both sides, sealed run between them bounded.
+
+            "Road" is any cell whose chosen surface sits within one CLIMB step
+            of zr, exactly as the underpass reclaim's _road_dist defines it --
+            NOT "cell the grow reached". The street on the far side of a
+            sealed run is usually cut off from the spawn region by that very
+            run, so it is never grow-reached; requiring that found no anchor
+            and the test could not fire at all. A block at a different height
+            fails the height match anyway, which is what keeps this honest.
+            """
+            def reach(di, dj):
+                for s in range(1, RECLAIM_D + 1):
+                    a, b = i + di * s, j + dj * s
+                    if not (0 <= a < NXC and 0 <= b < NYC):
+                        return None, None
+                    if np.isfinite(Hf[a, b]) and abs(Hf[a, b] - zr) <= CLIMB:
+                        return s, Hf[a, b]
+                return None, None
+            for (da, db), (ea, eb) in (((1, 0), (-1, 0)), ((0, 1), (0, -1))):
+                dp, hp = reach(da, db)
+                dm, hm = reach(ea, eb)
+                if (dp is not None and dm is not None
+                        and dp + dm - 1 <= COVERED_SPAN_MAX
+                        and abs(hp - hm) <= COVERED_LEVEL_TOL):
+                    return True
+            return False
+
+        changed = 0
+        for (i, j), _c in cands.items():
+            if openf[i, j]:
                 continue
-            if _standable(z, allc):        # not the case this pass is for
+            allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
+            pick = kind = None
+            for z, cov, acov in allc:
+                if cov < MIN_COV or acov < LATTICE_ROAD_COV:
+                    continue
+                if _standable(z, allc):    # not the case these passes are for
+                    continue
+                if Hf[i, j] - z <= CLIMB:
+                    continue               # not sealed above it anyway
+                over = sorted(z2 for z2, _c2, _a2 in allc if z2 > z + CEIL_GAP)
+                if over and over[0] - z <= HEADROOM:
+                    continue               # cannot fit under whatever is up there
+                solid = [z2 for z2, _c2, acov2 in allc
+                         if z2 > z + CEIL_GAP and acov2 >= CEIL_COV]
+                if not solid:
+                    # Roofed only by sparse structure. Needs TWO open
+                    # neighbours at road level: one means a dead-end notch cut
+                    # into a deck, which is how the previous reclaim flipped
+                    # the robot -- it drives in, no way out, no floor either
+                    # side.
+                    if sum(np.isfinite(Hf[i + di, j + dj])
+                           and abs(Hf[i + di, j + dj] - z) <= CLIMB
+                           for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                           if 0 <= i + di < NXC and 0 <= j + dj < NYC) >= 2:
+                        if pick is None or z > pick:
+                            pick, kind = z, "lattice"
+                elif acov >= COVERED_ROAD_COV and _spanned(i, j, z):
+                    # Roofed by a genuinely solid slab, but the cell bridges
+                    # two stretches of road at one level over a short run:
+                    # a street under a podium, not a floor inside a building.
+                    if pick is None or z > pick:
+                        pick, kind = z, "covered"
+            if pick is None:
                 continue
-            solid = [z2 for z2, _c2, acov2 in allc
-                     if z2 > z + CEIL_GAP and acov2 >= CEIL_COV]
-            if solid:                      # a real slab roofs it: leave solid
+            H[i, j] = pick
+            open_[i, j] = True
+            reopened.append((i, j))
+            changed += 1
+            if kind == "lattice":
+                n_lattice += 1
+            else:
+                n_covered += 1
+        if not changed:
+            break
+
+    # Reconnect, radius 1. A cell fenced in by the run just reopened may hold
+    # a perfectly standable road that the grow simply never arrived at, so the
+    # solid-fill gave it its highest candidate instead: world (82,126) sat at
+    # 27.01 with a clean 6.03 road and no roof over it, walling the far end of
+    # the street this pass just opened. Neither test above touches it -- both
+    # only consider candidates _standable REJECTED.
+    #
+    # Strictly one cell deep, and deliberately not part of the fixed-point
+    # loop. Letting this flood iterate re-grows the map through every pocket
+    # the grow could not reach and drops 2899 cells, which is exactly the
+    # "buildings stay solid because the grow never got in" guarantee above.
+    # One ring finishes a passage without reopening districts.
+    n_join = 0
+    joined = []
+    for i, j in reopened:
+        h = H[i, j]
+        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            a, b = i + di, j + dj
+            if not (0 <= a < NXC and 0 <= b < NYC) or (a, b) not in cands:
                 continue
-            over = sorted(z2 for z2, _c2, _a2 in allc if z2 > z + CEIL_GAP)
-            if over and over[0] - z <= HEADROOM:
-                continue                   # cannot fit under the lattice
-            if Hl[i, j] - z <= CLIMB:
-                continue                   # not sealed above it anyway
-            if best is None or z > best:
-                best = z
-        if best is None:
-            continue
-        # Only where the robot can actually reach it, and only where it leads
-        # somewhere: at least TWO 4-neighbours the grow settled within one
-        # CLIMB step of this road. One neighbour means a dead-end notch cut
-        # into a deck, which is how the previous reclaim flipped the robot --
-        # it drives in and there is no way out and no floor either side.
-        if sum(reached[i + di, j + dj]
-               and abs(Hl[i + di, j + dj] - best) <= CLIMB
-               for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1))
-               if 0 <= i + di < NXC and 0 <= j + dj < NYC) >= 2:
-            H[i, j] = best
-            n_lattice += 1
-    print(f"lattice reclaim: {n_lattice} sealed cells pulled back to a road "
-          f"roofed only by sparse structure")
+            for z, _cov in cands[(a, b)]:
+                if abs(z - h) <= CLIMB and H[a, b] - z > CLIMB:
+                    H[a, b] = z
+                    n_join += 1
+                    joined.append((a, b))
+                    break
+
+    # Every cell these passes lowered must end up with at least TWO
+    # same-level neighbours -- a road you can drive through, not a notch cut
+    # into a deck with a 15-27 m drop on three sides (which is how the earlier
+    # reclaim flipped the robot). The lattice test checks this up front, but
+    # the covered-street and rejoin tests cannot: they run before the rest of
+    # the passage exists. So check once at the end and put anything still
+    # stranded back where it was, repeating because reverting one cell can
+    # strand its neighbour.
+    touched = list(dict.fromkeys(reopened + joined))
+    n_revert = 0
+    while True:
+        stranded = [(i, j) for i, j in touched
+                    if np.isfinite(H[i, j]) and sum(
+                        np.isfinite(H[i + di, j + dj])
+                        and abs(H[i + di, j + dj] - H[i, j]) <= CLIMB
+                        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1))
+                        if 0 <= i + di < NXC and 0 <= j + dj < NYC) < 2]
+        if not stranded:
+            break
+        for i, j in stranded:
+            H[i, j] = Hpre[i, j]
+            touched.remove((i, j))
+            n_revert += 1
+    print(f"reopened {n_lattice} cells roofed only by sparse structure, "
+          f"{n_covered} covered-street cells spanned by a solid deck, "
+          f"{n_join} fenced-in roads rejoined, {n_revert} reverted as dead ends")
 
     print(f"surfaces: {len(cands)} cells with candidates, "
           f"{n_reach} reached by grow, {len(cands) - n_reach} left solid, "
