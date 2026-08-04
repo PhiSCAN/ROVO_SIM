@@ -739,12 +739,39 @@
       </plugin>
       
       <!-- Inspector -->
+      <!-- Move rovo anywhere: arm "Pick pose in scene" then click the ground,
+           or type a pose. Built by rovo_gz_teleport; the launch puts its
+           build dir on GZ_GUI_PLUGIN_PATH. Spawn values match
+           _WORLD_SPAWN_DEFAULTS / _WORLD_YAW so "Reset to spawn" agrees with
+           where the world started the robot. -->
+      <plugin filename="RovoTeleport" name="Rovo Teleport">
+        <gz-gui>
+          <property type="string" key="state">docked</property>
+          <property type="double" key="height">320</property>
+          <property type="double" key="width">380</property>
+        </gz-gui>
+        <model>rovo</model>
+        <drop>0.30</drop>
+        <spawn_x>0.099</spawn_x>
+        <spawn_y>467.590</spawn_y>
+        <spawn_z>4.15</spawn_z>
+        <spawn_yaw>0.19107</spawn_yaw>
+        <!-- Chase camera. Applied once, when the model first shows up in the
+             ECM (asking earlier returns success and does nothing), then left
+             alone so the panel's button can actually turn it off. -->
+        <follow_on_start>true</follow_on_start>
+        <follow_offset_x>-6.0</follow_offset_x>
+        <follow_offset_y>0.0</follow_offset_y>
+        <follow_offset_z>9.0</follow_offset_z>
+      </plugin>
+
       <plugin filename="ComponentInspector" name="Component inspector">
         <gz-gui>
           <property type="bool" key="showTitleBar">false</property>
           <property type="string" key="state">docked</property>
         </gz-gui>
       </plugin>
+
       
       <!-- Entity tree -->
       <plugin filename="EntityTree" name="Entity tree">
