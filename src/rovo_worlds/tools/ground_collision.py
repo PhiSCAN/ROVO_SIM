@@ -814,10 +814,89 @@ def main():
     qxm = (qx0 + qx1) / 2; qym = (qy0 + qy1) / 2
     a00 = z00[stepq]; a10 = z10[stepq]; a01 = z01[stepq]; a11 = z11[stepq]
 
-    add_flat(qx0, qxm, qy0, qym, a00)       # corner (i,   j  )
-    add_flat(qxm, qx1, qy0, qym, a10)       # corner (i+1, j  )
-    add_flat(qx0, qxm, qym, qy1, a01)       # corner (i,   j+1)
-    add_flat(qxm, qx1, qym, qy1, a11)       # corner (i+1, j+1)
+    # Unified lower field. A corner counts as lower-drivable if it carries a
+    # second surface L, OR if its own heightfield value already IS the lower
+    # level right next to one that does -- which is the case at every mouth,
+    # where the street leaves the deck and becomes ordinary ground.
+    #
+    # Without that second clause the lower mesh stopped at the last L cell and
+    # met the main surface's flat tile there, two flat tiles at slightly
+    # different heights, i.e. a riser at the rim of every patch: 976 of them
+    # map-wide, 843 under 25 cm, each able to stop a track dead on what looks
+    # like open road.
+    Lx = np.where(np.isfinite(L), L, np.nan)
+    joins = np.zeros(L.shape, bool)
+    for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        sh = np.full_like(L, np.nan)
+        src = L[max(0, -di):nx - max(0, di) or None,
+                max(0, -dj):ny - max(0, dj) or None]
+        sh[max(0, di):nx - max(0, -di) or None,
+           max(0, dj):ny - max(0, -dj) or None] = src
+        joins |= np.isfinite(sh) & (np.abs(H - sh) <= CLIMB)
+    Lx = np.where(np.isfinite(Lx), Lx, np.where(joins, H, np.nan))
+
+    # One-cell skirt. A quad still falls back to tiles (and so still leaves a
+    # riser) when one of its corners is a pier or a building with no lower
+    # surface at all. Give those corners the mean of their lower neighbours,
+    # purely so the quad can be built smooth. The skirt lies INSIDE the solid
+    # block that owns the cell, under its own 20 m of collision, so nothing
+    # can ever stand on it -- it exists to make the seam next to it flat.
+    skirt = np.full(Lx.shape, np.nan)
+    acc = np.zeros(Lx.shape)
+    cnt = np.zeros(Lx.shape)
+    for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        sh = np.full_like(Lx, np.nan)
+        src = Lx[max(0, -di):nx - max(0, di) or None,
+                 max(0, -dj):ny - max(0, dj) or None]
+        sh[max(0, di):nx - max(0, -di) or None,
+           max(0, dj):ny - max(0, -dj) or None] = src
+        good = np.isfinite(sh)
+        acc[good] += sh[good]
+        cnt[good] += 1
+    mean = np.divide(acc, cnt, out=np.full(Lx.shape, np.nan), where=cnt > 0)
+    # ONLY into cells that are solid well above the skirt. Filling any cell
+    # that merely lacks L put a slab over open ground -- world (-222,362) grew
+    # a surface at 1.22 above its real -1.91 road, a floating floor the robot
+    # would hit. Requiring the cell's own surface to sit HEADROOM above keeps
+    # the skirt buried in the block it belongs to.
+    fill = ~np.isfinite(Lx) & np.isfinite(mean) & (H - mean > HEADROOM)
+    skirt[fill] = mean[fill]
+    Lx = np.where(np.isfinite(Lx), Lx, skirt)
+
+    Lxf = Lx - OFF[2]
+    x00 = Lxf[:-1, :-1]; x10 = Lxf[1:, :-1]
+    x01 = Lxf[:-1, 1:];  x11 = Lxf[1:, 1:]
+    xspan = (np.fmax(np.fmax(x00, x10), np.fmax(x01, x11))
+             - np.fmin(np.fmin(x00, x10), np.fmin(x01, x11)))
+    realL = (np.isfinite(L[:-1, :-1]) | np.isfinite(L[1:, :-1])
+             | np.isfinite(L[:-1, 1:]) | np.isfinite(L[1:, 1:]))
+    smooth_low = (np.isfinite(x00) & np.isfinite(x10) & np.isfinite(x01)
+                  & np.isfinite(x11) & (xspan <= WALL_TH) & realL)
+
+    # Where the lower mesh spans a quad, its H-sourced corners are the SAME
+    # surface the main tile would draw. Emitting both leaves two coincident
+    # faces and the contact normal flaps between them, so drop the main one.
+    # Only a corner whose lower value IS the heightfield (the join case) is a
+    # duplicate. A SKIRT corner is not: there the heightfield still holds the
+    # block's own top, and dropping its tile punched the roof out -- world
+    # (30,-10) fell 27.87 -> -0.35.
+    fromH = joins & ~np.isfinite(L)
+    keep00 = stepq & ~(smooth_low & fromH[:-1, :-1])
+    keep10 = stepq & ~(smooth_low & fromH[1:, :-1])
+    keep01 = stepq & ~(smooth_low & fromH[:-1, 1:])
+    keep11 = stepq & ~(smooth_low & fromH[1:, 1:])
+    add_flat(CXv[:-1, :-1][keep00], ((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep00],
+             CYv[:-1, :-1][keep00], ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep00],
+             z00[keep00])                    # corner (i,   j  )
+    add_flat(((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep10], CXv[1:, :-1][keep10],
+             CYv[:-1, :-1][keep10], ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep10],
+             z10[keep10])                    # corner (i+1, j  )
+    add_flat(CXv[:-1, :-1][keep01], ((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep01],
+             ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep01], CYv[:-1, 1:][keep01],
+             z01[keep01])                    # corner (i,   j+1)
+    add_flat(((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep11], CXv[1:, :-1][keep11],
+             ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep11], CYv[:-1, 1:][keep11],
+             z11[keep11])                    # corner (i+1, j+1)
 
     # Cliff walls, with the underpass mouth left OPEN. Where the taller corner
     # carries a lower surface at the shorter corner's level, the drop is a
@@ -857,12 +936,8 @@ def main():
     # lower street (world (7.4,86) could reverse and turn but not drive on).
     # Tiles survive only at the rim of a patch, where there is no neighbouring
     # cell to share a vertex with.
-    lowv = np.isfinite(l00) & np.isfinite(l10) & np.isfinite(l01) & np.isfinite(l11)
-    lspan = (np.fmax(np.fmax(l00, l10), np.fmax(l01, l11))
-             - np.fmin(np.fmin(l00, l10), np.fmin(l01, l11)))
-    smooth_low = lowv & (lspan <= WALL_TH)
     lowverts = np.column_stack(
-        [gx.ravel(), gy.ravel(), np.nan_to_num(L, nan=0.0).ravel()]) - OFF
+        [gx.ravel(), gy.ravel(), np.nan_to_num(Lx, nan=0.0).ravel()]) - OFF
     base = nx * ny
     sm = smooth_low.ravel()
     faces.append(np.column_stack([a, b, d])[sm] + base)
@@ -889,10 +964,10 @@ def main():
     # with no street under it -- it gets a curb so the robot cannot drive off
     # the edge into the void under the deck.
     for la, lb, za, zb, xa, ya, xb, yb in (
-            (l00, l10, z00, z10, QXM, QY0, QXM, QYM),
-            (l01, l11, z01, z11, QXM, QYM, QXM, QY1),
-            (l00, l01, z00, z01, QX0, QYM, QXM, QYM),
-            (l10, l11, z10, z11, QXM, QYM, QX1, QYM)):
+            (x00, x10, z00, z10, QXM, QY0, QXM, QYM),
+            (x01, x11, z01, z11, QXM, QYM, QXM, QY1),
+            (x00, x01, z00, z01, QX0, QYM, QXM, QYM),
+            (x10, x11, z10, z11, QXM, QYM, QX1, QYM)):
         fa, fb = np.isfinite(la), np.isfinite(lb)
         rim = ~smooth_low
         m = fa & fb & rim
