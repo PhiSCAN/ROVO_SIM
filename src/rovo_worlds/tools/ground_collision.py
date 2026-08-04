@@ -780,7 +780,7 @@ def main():
     faces = [f[smooth] for f in faces]
 
     extra_v, extra_f = [], []
-    nv = [nx * ny]
+    nv = [nx * ny * 2]                    # grid 0 = heightfield, grid 1 = lower
 
     def _quad(p0, p1, p2, p3):
         """Append a quad (4 own vertices, 2 tris) per row of the inputs."""
@@ -847,48 +847,65 @@ def main():
     w, h = _mouth(a10, a11, s10, s11)
     add_wall(qxm, qym, qx1, qym, w, h)      # y seam, high x half
 
-    # The lower level itself: flat tiles per quadrant, so a cell's full 4x4 m
-    # footprint is covered by the four quads that touch it. Flat rather than
-    # smooth-interpolated because these patches start and stop against decks
-    # and buildings; an interpolated edge would ramp up into the wall.
+    # The lower level itself, built the SAME way as the heightfield above it:
+    # one shared vertex per cell centre, smooth quads between them. Flat
+    # per-cell tiles were the first attempt and they re-created exactly the
+    # defect the smooth surface exists to avoid -- neighbouring cells at
+    # -0.840 and -0.798 leave a 4.2 cm vertical riser at their shared edge,
+    # and a track is a 0.10 m box driven by surface friction, so it cannot
+    # climb ANY vertical face. That put a hard stop every 4 m along every
+    # lower street (world (7.4,86) could reverse and turn but not drive on).
+    # Tiles survive only at the rim of a patch, where there is no neighbouring
+    # cell to share a vertex with.
+    lowv = np.isfinite(l00) & np.isfinite(l10) & np.isfinite(l01) & np.isfinite(l11)
+    lspan = (np.fmax(np.fmax(l00, l10), np.fmax(l01, l11))
+             - np.fmin(np.fmin(l00, l10), np.fmin(l01, l11)))
+    smooth_low = lowv & (lspan <= WALL_TH)
+    lowverts = np.column_stack(
+        [gx.ravel(), gy.ravel(), np.nan_to_num(L, nan=0.0).ravel()]) - OFF
+    base = nx * ny
+    sm = smooth_low.ravel()
+    faces.append(np.column_stack([a, b, d])[sm] + base)
+    faces.append(np.column_stack([a, d, c])[sm] + base)
+
     QX0 = CXv[:-1, :-1]; QX1 = CXv[1:, :-1]
     QY0 = CYv[:-1, :-1]; QY1 = CYv[:-1, 1:]
     QXM = (QX0 + QX1) / 2; QYM = (QY0 + QY1) / 2
-    n_low = 0
+    n_low = int(sm.sum())
     for lc, xa, xb, ya, yb in ((l00, QX0, QXM, QY0, QYM),
                                (l10, QXM, QX1, QY0, QYM),
                                (l01, QX0, QXM, QYM, QY1),
                                (l11, QXM, QX1, QYM, QY1)):
-        m = np.isfinite(lc)
+        m = np.isfinite(lc) & ~smooth_low
         if m.any():
             add_flat(xa[m], xb[m], ya[m], yb[m], lc[m])
             n_low += int(m.sum())
 
-    # Seams of the lower level. Two tiles at the same level meet flush (the
-    # wall collapses under add_wall's 1 mm cut); where a tile ends against
-    # something that is NOT at its level -- a pier, a building, the far side
-    # of a deck with no street under it -- it gets a curb so the robot cannot
-    # drive off the edge into the void under the deck.
+    # Seams, only around the rim (a smooth quad has no internal seam). Two
+    # lower surfaces meet with a wall spanning them, which collapses under
+    # add_wall's 1 mm cut when they are flush. Where a patch ends against the
+    # main surface at its own level it joins flush and needs nothing; where it
+    # ends against anything else -- a pier, a building, the far side of a deck
+    # with no street under it -- it gets a curb so the robot cannot drive off
+    # the edge into the void under the deck.
     for la, lb, za, zb, xa, ya, xb, yb in (
             (l00, l10, z00, z10, QXM, QY0, QXM, QYM),
             (l01, l11, z01, z11, QXM, QYM, QXM, QY1),
             (l00, l01, z00, z01, QX0, QYM, QXM, QYM),
             (l10, l11, z10, z11, QXM, QYM, QX1, QYM)):
-        ea = np.where(np.isfinite(la), la, za)
-        eb = np.where(np.isfinite(lb), lb, zb)
-        joined = np.abs(ea - eb) <= CLIMB
-        m = (np.isfinite(la) | np.isfinite(lb)) & joined
+        fa, fb = np.isfinite(la), np.isfinite(lb)
+        rim = ~smooth_low
+        m = fa & fb & rim
         if m.any():
-            add_wall(xa[m], ya[m], xb[m], yb[m], ea[m], eb[m])
-        for lc in (la, lb):
-            m = np.isfinite(lc) & ~joined
+            add_wall(xa[m], ya[m], xb[m], yb[m], la[m], lb[m])
+        for lc, other_h, mine, theirs in ((la, zb, fa, fb), (lb, za, fb, fa)):
+            m = mine & ~theirs & rim & (np.abs(other_h - lc) > CLIMB)
             if m.any():
                 add_wall(xa[m], ya[m], xb[m], yb[m],
                          lc[m], lc[m] + LOWER_EDGE_WALL)
 
-    if extra_v:
-        verts = np.vstack([verts] + extra_v)
-        faces = faces + extra_f
+    verts = np.vstack([verts, lowverts] + extra_v)
+    faces = faces + extra_f
     faces = np.concatenate(faces)
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
 
