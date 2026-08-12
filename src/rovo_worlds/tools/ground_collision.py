@@ -140,22 +140,6 @@ COVERED_SPAN_MAX = 2                  # max sealed cells between the two roads
 COVERED_ROAD_COV = 0.9                # the road must really be a road, by area
 COVERED_LEVEL_TOL = 0.3               # the two roads must be the same level
 MAX_REOPEN_ROUNDS = 8                 # fixed-point cap for the reopen passes
-# Multi-level bake. Everything above picks ONE surface per cell, and no
-# threshold can fix a two-level street: whichever level wins, the other
-# becomes a wall (from below) or a pit (from above). world (-9,81) is the
-# case -- a -0.8 street running 32 m east under a 6.06 deck, both real, both
-# drivable. Widening the underpass reclaim to cover it would punch the deck
-# into a 6.9 m hole, which is the regression 6712451 fixed.
-#
-# So emit BOTH. An STL has no trouble with overhangs; the heightfield is this
-# script's own convention, not a gz limit. The deck keeps the heightfield and
-# the street under it gets its own flat tiles, joined to the open ground at
-# each end. Two rules make it safe: a lower surface must be REACHABLE (the
-# 2-layer flood below, so a building's basement slab never appears), and the
-# cliff wall at the deck edge is lifted to leave the mouth open instead of
-# curtaining it off -- without that the tiles exist but nothing can drive in.
-MULTI_ROAD_COV = 0.5                  # lower surface must be real, by area
-LOWER_EDGE_WALL = 1.0                 # curb where a lower tile runs out
 # An OVERPASS is a road with a bridge over it: the ray finds a low road, real
 # headroom, then a single thin deck. That deck covers the road just like a
 # building floor does, so the CEIL_COV roof test above deletes the road and
@@ -577,55 +561,6 @@ def pick_reachable(occ, zsum, zcnt):
     return H
 
 
-def lower_surfaces(occ, zsum, zcnt, H):
-    """Second drivable surface per cell, under the one the heightfield kept.
-
-    Reachability is decided on a TWO-LAYER graph: a node is (cell, surface),
-    not a cell, and neighbouring nodes join when their heights are within one
-    CLIMB step. Flooding that from the spawn keeps a street that runs under a
-    deck (it rejoins open ground at both ends) and drops a slab sealed inside
-    a building (nothing at its level to step onto). A cell-level flood cannot
-    make that distinction -- it is the same connectivity argument the main
-    grow rests on, one dimension up.
-    """
-    surf = {}
-    for i, j in zip(*np.nonzero(occ.any(axis=2))):
-        if not np.isfinite(H[i, j]):
-            continue
-        allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
-        surf[(i, j)] = [H[i, j]] + [
-            z for z, cov, acov in allc
-            if cov >= MIN_COV and acov >= MULTI_ROAD_COV
-            and z < H[i, j] - HEADROOM and _standable(z, allc)]
-
-    si = int(np.floor(SEED_XY[0] / STEP)) - CX0
-    sj = int(np.floor(SEED_XY[1] / STEP)) - CY0
-    seen = {(si, sj, 0)}
-    dq = collections.deque(seen)
-    while dq:
-        i, j, k = dq.popleft()
-        z = surf[(i, j)][k]
-        for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nb = surf.get((i + di, j + dj))
-            if nb is None:
-                continue
-            for k2, z2 in enumerate(nb):
-                if abs(z2 - z) <= CLIMB and (i + di, j + dj, k2) not in seen:
-                    seen.add((i + di, j + dj, k2))
-                    dq.append((i + di, j + dj, k2))
-
-    L = np.full(H.shape, np.nan)
-    for i, j, k in seen:
-        if k == 0:                     # layer 0 is the heightfield itself
-            continue
-        z = surf[(i, j)][k]
-        if np.isnan(L[i, j]) or z > L[i, j]:
-            L[i, j] = z                # highest reachable surface under the deck
-    print(f"multi-level: {int(np.isfinite(L).sum())} cells carry a reachable "
-          f"second surface under the heightfield")
-    return L
-
-
 def main():
     cache = os.path.join(HERE, "shinjuku_layers.npz")
     if len(sys.argv) > 1:
@@ -638,14 +573,12 @@ def main():
         print(f"cached scan -> {cache} (reuse: ground_collision.py {cache})")
 
     H = pick_reachable(occ, zsum, zcnt)
-    L = lower_surfaces(occ, zsum, zcnt, H)
 
     # Crop the generous allocation to the cells that actually carry geometry.
     live = np.isfinite(H)
     ii, jj = np.where(live)
     lo_i, hi_i, lo_j, hi_j = ii.min(), ii.max() + 1, jj.min(), jj.max() + 1
     H = H[lo_i:hi_i, lo_j:hi_j]
-    L = L[lo_i:hi_i, lo_j:hi_j]
     x0, y0 = CX0 + lo_i, CY0 + lo_j
     nx, ny = H.shape
     print(f"grid {nx} x {ny} cells ({nx*STEP:.0f} x {ny*STEP:.0f} m), "
@@ -780,7 +713,7 @@ def main():
     faces = [f[smooth] for f in faces]
 
     extra_v, extra_f = [], []
-    nv = [nx * ny * 2]                    # grid 0 = heightfield, grid 1 = lower
+    nv = [nx * ny]
 
     def _quad(p0, p1, p2, p3):
         """Append a quad (4 own vertices, 2 tris) per row of the inputs."""
@@ -814,173 +747,19 @@ def main():
     qxm = (qx0 + qx1) / 2; qym = (qy0 + qy1) / 2
     a00 = z00[stepq]; a10 = z10[stepq]; a01 = z01[stepq]; a11 = z11[stepq]
 
-    # Unified lower field. A corner counts as lower-drivable if it carries a
-    # second surface L, OR if its own heightfield value already IS the lower
-    # level right next to one that does -- which is the case at every mouth,
-    # where the street leaves the deck and becomes ordinary ground.
-    #
-    # Without that second clause the lower mesh stopped at the last L cell and
-    # met the main surface's flat tile there, two flat tiles at slightly
-    # different heights, i.e. a riser at the rim of every patch: 976 of them
-    # map-wide, 843 under 25 cm, each able to stop a track dead on what looks
-    # like open road.
-    Lx = np.where(np.isfinite(L), L, np.nan)
-    joins = np.zeros(L.shape, bool)
-    for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-        sh = np.full_like(L, np.nan)
-        src = L[max(0, -di):nx - max(0, di) or None,
-                max(0, -dj):ny - max(0, dj) or None]
-        sh[max(0, di):nx - max(0, -di) or None,
-           max(0, dj):ny - max(0, -dj) or None] = src
-        joins |= np.isfinite(sh) & (np.abs(H - sh) <= CLIMB)
-    Lx = np.where(np.isfinite(Lx), Lx, np.where(joins, H, np.nan))
+    add_flat(qx0, qxm, qy0, qym, a00)       # corner (i,   j  )
+    add_flat(qxm, qx1, qy0, qym, a10)       # corner (i+1, j  )
+    add_flat(qx0, qxm, qym, qy1, a01)       # corner (i,   j+1)
+    add_flat(qxm, qx1, qym, qy1, a11)       # corner (i+1, j+1)
 
-    # One-cell skirt. A quad still falls back to tiles (and so still leaves a
-    # riser) when one of its corners is a pier or a building with no lower
-    # surface at all. Give those corners the mean of their lower neighbours,
-    # purely so the quad can be built smooth. The skirt lies INSIDE the solid
-    # block that owns the cell, under its own 20 m of collision, so nothing
-    # can ever stand on it -- it exists to make the seam next to it flat.
-    skirt = np.full(Lx.shape, np.nan)
-    acc = np.zeros(Lx.shape)
-    cnt = np.zeros(Lx.shape)
-    for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-        sh = np.full_like(Lx, np.nan)
-        src = Lx[max(0, -di):nx - max(0, di) or None,
-                 max(0, -dj):ny - max(0, dj) or None]
-        sh[max(0, di):nx - max(0, -di) or None,
-           max(0, dj):ny - max(0, -dj) or None] = src
-        good = np.isfinite(sh)
-        acc[good] += sh[good]
-        cnt[good] += 1
-    mean = np.divide(acc, cnt, out=np.full(Lx.shape, np.nan), where=cnt > 0)
-    # ONLY into cells that are solid well above the skirt. Filling any cell
-    # that merely lacks L put a slab over open ground -- world (-222,362) grew
-    # a surface at 1.22 above its real -1.91 road, a floating floor the robot
-    # would hit. Requiring the cell's own surface to sit HEADROOM above keeps
-    # the skirt buried in the block it belongs to.
-    fill = ~np.isfinite(Lx) & np.isfinite(mean) & (H - mean > HEADROOM)
-    skirt[fill] = mean[fill]
-    Lx = np.where(np.isfinite(Lx), Lx, skirt)
+    add_wall(qxm, qy0, qxm, qym, a00, a10)  # x seam, low  y half
+    add_wall(qxm, qym, qxm, qy1, a01, a11)  # x seam, high y half
+    add_wall(qx0, qym, qxm, qym, a00, a01)  # y seam, low  x half
+    add_wall(qxm, qym, qx1, qym, a10, a11)  # y seam, high x half
 
-    Lxf = Lx - OFF[2]
-    x00 = Lxf[:-1, :-1]; x10 = Lxf[1:, :-1]
-    x01 = Lxf[:-1, 1:];  x11 = Lxf[1:, 1:]
-    xspan = (np.fmax(np.fmax(x00, x10), np.fmax(x01, x11))
-             - np.fmin(np.fmin(x00, x10), np.fmin(x01, x11)))
-    realL = (np.isfinite(L[:-1, :-1]) | np.isfinite(L[1:, :-1])
-             | np.isfinite(L[:-1, 1:]) | np.isfinite(L[1:, 1:]))
-    smooth_low = (np.isfinite(x00) & np.isfinite(x10) & np.isfinite(x01)
-                  & np.isfinite(x11) & (xspan <= WALL_TH) & realL)
-
-    # Where the lower mesh spans a quad, its H-sourced corners are the SAME
-    # surface the main tile would draw. Emitting both leaves two coincident
-    # faces and the contact normal flaps between them, so drop the main one.
-    # Only a corner whose lower value IS the heightfield (the join case) is a
-    # duplicate. A SKIRT corner is not: there the heightfield still holds the
-    # block's own top, and dropping its tile punched the roof out -- world
-    # (30,-10) fell 27.87 -> -0.35.
-    fromH = joins & ~np.isfinite(L)
-    keep00 = stepq & ~(smooth_low & fromH[:-1, :-1])
-    keep10 = stepq & ~(smooth_low & fromH[1:, :-1])
-    keep01 = stepq & ~(smooth_low & fromH[:-1, 1:])
-    keep11 = stepq & ~(smooth_low & fromH[1:, 1:])
-    add_flat(CXv[:-1, :-1][keep00], ((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep00],
-             CYv[:-1, :-1][keep00], ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep00],
-             z00[keep00])                    # corner (i,   j  )
-    add_flat(((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep10], CXv[1:, :-1][keep10],
-             CYv[:-1, :-1][keep10], ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep10],
-             z10[keep10])                    # corner (i+1, j  )
-    add_flat(CXv[:-1, :-1][keep01], ((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep01],
-             ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep01], CYv[:-1, 1:][keep01],
-             z01[keep01])                    # corner (i,   j+1)
-    add_flat(((CXv[:-1, :-1] + CXv[1:, :-1]) / 2)[keep11], CXv[1:, :-1][keep11],
-             ((CYv[:-1, :-1] + CYv[:-1, 1:]) / 2)[keep11], CYv[:-1, 1:][keep11],
-             z11[keep11])                    # corner (i+1, j+1)
-
-    # Cliff walls, with the underpass mouth left OPEN. Where the taller corner
-    # carries a lower surface at the shorter corner's level, the drop is a
-    # deck edge with a street running under it, so the wall starts HEADROOM
-    # above that street instead of at it. Walling the full drop is what made
-    # the lower street unreachable in the first place -- the tiles below would
-    # exist but every way in would be curtained off.
-    Lf = L - OFF[2]
-    l00 = Lf[:-1, :-1]; l10 = Lf[1:, :-1]
-    l01 = Lf[:-1, 1:];  l11 = Lf[1:, 1:]
-
-    def _mouth(zA, zB, LA, LB):
-        lo = np.minimum(zA, zB)
-        hi = np.maximum(zA, zB)
-        ltall = np.where(zA >= zB, LA, LB)
-        opened = np.isfinite(ltall) & (np.abs(ltall - lo) <= CLIMB)
-        return np.where(opened, np.minimum(lo + HEADROOM, hi), lo), hi
-
-    s00, s10 = l00[stepq], l10[stepq]
-    s01, s11 = l01[stepq], l11[stepq]
-    w, h = _mouth(a00, a10, s00, s10)
-    add_wall(qxm, qy0, qxm, qym, w, h)      # x seam, low  y half
-    w, h = _mouth(a01, a11, s01, s11)
-    add_wall(qxm, qym, qxm, qy1, w, h)      # x seam, high y half
-    w, h = _mouth(a00, a01, s00, s01)
-    add_wall(qx0, qym, qxm, qym, w, h)      # y seam, low  x half
-    w, h = _mouth(a10, a11, s10, s11)
-    add_wall(qxm, qym, qx1, qym, w, h)      # y seam, high x half
-
-    # The lower level itself, built the SAME way as the heightfield above it:
-    # one shared vertex per cell centre, smooth quads between them. Flat
-    # per-cell tiles were the first attempt and they re-created exactly the
-    # defect the smooth surface exists to avoid -- neighbouring cells at
-    # -0.840 and -0.798 leave a 4.2 cm vertical riser at their shared edge,
-    # and a track is a 0.10 m box driven by surface friction, so it cannot
-    # climb ANY vertical face. That put a hard stop every 4 m along every
-    # lower street (world (7.4,86) could reverse and turn but not drive on).
-    # Tiles survive only at the rim of a patch, where there is no neighbouring
-    # cell to share a vertex with.
-    lowverts = np.column_stack(
-        [gx.ravel(), gy.ravel(), np.nan_to_num(Lx, nan=0.0).ravel()]) - OFF
-    base = nx * ny
-    sm = smooth_low.ravel()
-    faces.append(np.column_stack([a, b, d])[sm] + base)
-    faces.append(np.column_stack([a, d, c])[sm] + base)
-
-    QX0 = CXv[:-1, :-1]; QX1 = CXv[1:, :-1]
-    QY0 = CYv[:-1, :-1]; QY1 = CYv[:-1, 1:]
-    QXM = (QX0 + QX1) / 2; QYM = (QY0 + QY1) / 2
-    n_low = int(sm.sum())
-    for lc, xa, xb, ya, yb in ((l00, QX0, QXM, QY0, QYM),
-                               (l10, QXM, QX1, QY0, QYM),
-                               (l01, QX0, QXM, QYM, QY1),
-                               (l11, QXM, QX1, QYM, QY1)):
-        m = np.isfinite(lc) & ~smooth_low
-        if m.any():
-            add_flat(xa[m], xb[m], ya[m], yb[m], lc[m])
-            n_low += int(m.sum())
-
-    # Seams, only around the rim (a smooth quad has no internal seam). Two
-    # lower surfaces meet with a wall spanning them, which collapses under
-    # add_wall's 1 mm cut when they are flush. Where a patch ends against the
-    # main surface at its own level it joins flush and needs nothing; where it
-    # ends against anything else -- a pier, a building, the far side of a deck
-    # with no street under it -- it gets a curb so the robot cannot drive off
-    # the edge into the void under the deck.
-    for la, lb, za, zb, xa, ya, xb, yb in (
-            (x00, x10, z00, z10, QXM, QY0, QXM, QYM),
-            (x01, x11, z01, z11, QXM, QYM, QXM, QY1),
-            (x00, x01, z00, z01, QX0, QYM, QXM, QYM),
-            (x10, x11, z10, z11, QXM, QYM, QX1, QYM)):
-        fa, fb = np.isfinite(la), np.isfinite(lb)
-        rim = ~smooth_low
-        m = fa & fb & rim
-        if m.any():
-            add_wall(xa[m], ya[m], xb[m], yb[m], la[m], lb[m])
-        for lc, other_h, mine, theirs in ((la, zb, fa, fb), (lb, za, fb, fa)):
-            m = mine & ~theirs & rim & (np.abs(other_h - lc) > CLIMB)
-            if m.any():
-                add_wall(xa[m], ya[m], xb[m], yb[m],
-                         lc[m], lc[m] + LOWER_EDGE_WALL)
-
-    verts = np.vstack([verts, lowverts] + extra_v)
-    faces = faces + extra_f
+    if extra_v:
+        verts = np.vstack([verts] + extra_v)
+        faces = faces + extra_f
     faces = np.concatenate(faces)
     mesh = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
 
@@ -998,7 +777,6 @@ def main():
     mesh.export(OUT)
     print(f"wrote {OUT}: {len(verts)} verts, {len(faces)} tris "
           f"({int(stepq.sum())} cliff quads rebuilt as flat+wall, "
-          f"{n_low} lower-level tiles, "
           f"max ground slope {ramp.max():.1f} deg <= {limit:.1f}), "
           f"link-frame z range "
           f"[{verts[:, 2].min():.2f}, {verts[:, 2].max():.2f}]")
