@@ -103,6 +103,22 @@ Z_LO, Z_HI = -10.0, 32.0              # band range
 GROUND_LO, GROUND_HI = -3.0, 30.0
 FLAT_N = 0.7                          # |normal.z| above this = walkable-ish
 MIN_COV = 0.25                        # candidate must cover this much of a cell
+# A railing, median or fence spread across a cell lights most of its sub-cells
+# while covering almost none of its AREA, so occupancy alone promotes it to
+# the driving surface. Worse, it then propagates: once one cell sits on the
+# railing at 6.62, its neighbour prefers 6.62 (dz 0.03) over the real road at
+# 5.77 (dz 0.82), and the grow lays a 4 m wide, 0.8 m tall ridge down the
+# length of the street. Under WALL_TH it gets no wall either, just a cant --
+# world (61.5,227.4) put one track 0.22 m above the other and rolled the robot
+# 11.9 deg for the whole section.
+#
+# Deliberately NOT a blanket area floor: a genuine one-cell walkway or ramp is
+# narrow too, and clipping those sank the robot 1-12 m the last time this file
+# tried it. The signature of a false ridge is specifically thin geometry with
+# a much FULLER surface a short drop below it, so require both.
+THIN_AREA = 0.35                      # below this area fraction, suspect
+FULL_AREA = 0.5                       # a real surface covers at least this
+THIN_DROP = 2.0                       # ...and sits within this drop below
 # A surface is only standable if it is not roofed over. A canopy covers part
 # of a cell (the one at world (146,-90) covers 38%); a building's floor slab
 # covers all of it. So a candidate with ANY >=CEIL_COV surface above it is
@@ -292,6 +308,19 @@ def _standable(z, allc):
     if groups >= 2:
         return False
     return above[0] - z > HEADROOM and above[-1] <= OVERPASS_MAX
+
+
+def _thin_over_road(z, acov, allc):
+    """True when z is thin geometry sitting just above a much fuller surface.
+
+    That is a railing or median caught by occupancy, not something to drive
+    on. Nothing fuller underneath means it is a genuine narrow surface (a
+    walkway, a ramp) and it is kept.
+    """
+    if acov >= THIN_AREA:
+        return False
+    return any(z2 < z - 0.05 and acov2 >= FULL_AREA and (z - z2) <= THIN_DROP
+               for z2, _cov2, acov2 in allc)
 
 
 def pick_reachable(occ, zsum, zcnt):
@@ -554,6 +583,42 @@ def pick_reachable(occ, zsum, zcnt):
     print(f"reopened {n_lattice} cells roofed only by sparse structure, "
           f"{n_covered} covered-street cells spanned by a solid deck, "
           f"{n_join} fenced-in roads rejoined, {n_revert} reverted as dead ends")
+
+    # Thin-ridge reclaim. A cell sitting on a railing instead of the road it
+    # spans gets pulled down onto that road.
+    #
+    # A post-pass, NOT a filter on the grow's candidate list. Filtering there
+    # was tried and it re-routes the Dijkstra globally: 771 cells moved, 69 of
+    # them UPWARD by as much as 10 m, because removing a candidate changes
+    # which paths are cheapest and distant cells flip level. Here the grow is
+    # already final and cells can only come DOWN onto a surface their own
+    # neighbours already sit on.
+    Ht = H.copy()
+    n_ridge = 0
+    for (i, j), _c in cands.items():
+        z = Ht[i, j]
+        if not np.isfinite(z):
+            continue
+        allc = cell_candidates(occ[i, j], zsum[i, j], zcnt[i, j])
+        chosen = [a for a in allc if abs(a[0] - z) < 0.01]
+        if not chosen or not _thin_over_road(z, chosen[0][2], allc):
+            continue
+        below = [z2 for z2, _c2, acov2 in allc
+                 if z2 < z - 0.05 and acov2 >= FULL_AREA and (z - z2) <= THIN_DROP]
+        if not below:
+            continue
+        target = max(below)
+        # Only onto a level the neighbourhood agrees with: two 4-neighbours
+        # already there. That is what keeps a genuine narrow ramp -- whose
+        # neighbours sit at ramp height, not at the road below -- untouched.
+        if sum(np.isfinite(Ht[i + di, j + dj])
+               and abs(Ht[i + di, j + dj] - target) <= CLIMB
+               for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1))
+               if 0 <= i + di < NXC and 0 <= j + dj < NYC) >= 2:
+            H[i, j] = target
+            n_ridge += 1
+    print(f"thin-ridge reclaim: {n_ridge} cells pulled off a railing onto the "
+          f"road they span")
 
     print(f"surfaces: {len(cands)} cells with candidates, "
           f"{n_reach} reached by grow, {len(cands) - n_reach} left solid, "
