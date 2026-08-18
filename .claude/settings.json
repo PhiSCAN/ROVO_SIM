@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 900 nice -n 10 python3 -)",
+      "Bash(python3 -)",
+      "Bash(timeout 900 nice -n 10 python3 ground_collision.py shinjuku_layers.npz)",
+      "Bash(cd /home/godfather/ROVO_SIM/src/rovo_worlds/tools; sed -n '/# The lower level itself, built the SAME way/,/^    if extra_v:\\\\|^    verts = np.vstack/p' ground_collision.py | head -75)",
+      "Bash(python3 -c \"import ast;ast.parse\\(open\\('ground_collision.py'\\).read\\(\\)\\);print\\('parses OK'\\)\")"
+    ]
+  }
+}
