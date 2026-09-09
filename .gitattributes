@@ -1,0 +1,2 @@
+ros2_ws/src/clearpath_simulator/clearpath_gz/meshes/ filter=lfs diff=lfs merge=lfs -text
+ros2_ws/src/rovo_gz_description/meshes filter=lfs diff=lfs merge=lfs -text
