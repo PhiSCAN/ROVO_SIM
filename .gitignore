@@ -1,8 +1,9 @@
-build/
-install/
-log/
+ros2_ws/build
+ros2_ws/install
+ros2_ws/log
 *.pyc
 __pycache__/
+
 # gz runtime artifacts (keep only fuel model cache)
 gz_cache/auto_default.log
 gz_cache/rendering/
