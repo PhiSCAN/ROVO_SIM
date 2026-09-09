@@ -1,0 +1,334 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <model name="mars_rover">
+    <link name="chassis">
+      <collision name="solar_panel_collision">
+        <pose>0 -0.06945 0.47293 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.87974 0.8821 0.02602</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="chassis_collision">
+        <pose>0 -0.05 0.31475 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.49522 0.67401 0.28915</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="rear_left_bumper_collision">
+        <pose>0.30107 0.38350 0.38976 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.04442 0.388970 0.07918</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="rear_right_bumper_collision">
+        <pose>-0.30107 0.38350 0.38976 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.04442 0.388970 0.07918</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="rear_bumper_collision">
+        <pose>0 0.59414 0.38976 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.566560 0.04442 0.07918</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_back_panel_collision">
+        <pose>0 0.47 0.32114 0.69137 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.43774 0.212366009 0.05173</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_left_panel_collision1">
+        <pose>0.22615 0.328970 0.33193 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.19338 0.16304</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_left_panel_collision2">
+        <pose>0.22615 0.471 0.393080 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.15 0.04</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_left_panel_collision3">
+        <pose>0.22615 0.450 0.353080 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.15 0.04</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_left_panel_collision4">
+        <pose>0.22615 0.39308 0.313080 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.15 0.04</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_right_panel_collision1">
+        <pose>-0.22615 0.328970 0.33193 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.19338 0.16304</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_right_panel_collision2">
+        <pose>-0.22615 0.471 0.393080 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.15 0.04</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_right_panel_collision3">
+        <pose>-0.22615 0.450 0.353080 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.15 0.04</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_right_panel_collision4">
+        <pose>-0.22615 0.39308 0.313080 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.01116 0.15 0.04</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <collision name="bin_front_panel_collision">
+        <pose>0 0.300470 0.32114 2.26207 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.43774 0.212366009 0.05173</size>
+          </box>
+        </geometry>
+      </collision>
+
+      <visual name="chassis_visual">
+        <geometry>
+          <mesh>
+            <uri>model://mars_rover/meshes/rover.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <inertial>
+        <mass>100.0</mass>
+        <inertia>
+          <ixx>10.0</ixx>
+          <iyy>10.0</iyy>
+          <izz>10.0</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <link name="front_left_wheel">
+      <pose>0.31103 -0.32115 0.13580 1.5707 0 1.5707</pose>
+      <collision name="front_left_wheel_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="front_left_wheel_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>5.0</mass>
+        <inertia>
+          <ixx>0.1</ixx>
+          <iyy>0.1</iyy>
+          <izz>0.1</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <link name="front_right_wheel">
+      <pose>-0.31103 -0.32115 0.13580 1.5707 0 1.5707</pose>
+      <collision name="front_right_wheel_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="front_right_wheel_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>5.0</mass>
+        <inertia>
+          <ixx>0.1</ixx>
+          <iyy>0.1</iyy>
+          <izz>0.1</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <link name="rear_left_wheel">
+      <pose>0.31103 0.28049 0.13580 1.5707 0 1.5707</pose>
+      <collision name="rear_left_wheel_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="rear_left_wheel_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>5.0</mass>
+        <inertia>
+          <ixx>0.1</ixx>
+          <iyy>0.1</iyy>
+          <izz>0.1</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <link name="rear_right_wheel">
+      <pose>-0.31103 0.28049 0.13580 1.5707 0 1.5707</pose>
+      <collision name="rear_right_wheel_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name="rear_right_wheel_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.1358</radius>
+            <length>0.1641</length>
+          </cylinder>
+        </geometry>
+      </visual>
+      <inertial>
+        <mass>5.0</mass>
+        <inertia>
+          <ixx>0.1</ixx>
+          <iyy>0.1</iyy>
+          <izz>0.1</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <joint name="front_left_wheel_joint" type="revolute">
+      <parent>chassis</parent>
+      <child>front_left_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
+    <joint name="front_right_wheel_joint" type="revolute">
+      <parent>chassis</parent>
+      <child>front_right_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
+    <joint name="rear_left_wheel_joint" type="revolute">
+      <parent>chassis</parent>
+      <child>rear_left_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
+    <joint name="rear_right_wheel_joint" type="revolute">
+      <parent>chassis</parent>
+      <child>rear_right_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
+    <model name="aruco_marker">
+      <pose>0 0 0.7 1.5708 0 0</pose>
+      <include>
+        <uri>model://aruco_box</uri>
+      </include>
+    </model>
+
+    <joint name="aruco_marker_joint" type="fixed">
+      <parent>chassis</parent>
+      <child>aruco_marker</child>
+    </joint>
+
+    <plugin filename="libgazebo_ros_diff_drive.so" name="diff_drive_controller">
+      <ros>
+        <namespace>/mars_rover</namespace>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+      </ros>
+      <update_rate>50</update_rate>
+      <left_joint>rear_left_wheel_joint</left_joint>
+      <right_joint>rear_right_wheel_joint</right_joint>
+      <front_left_joint>front_left_wheel_joint</front_left_joint>
+      <front_right_joint>front_right_wheel_joint</front_right_joint>
+      <wheel_separation>0.62206</wheel_separation>
+      <wheel_diameter>0.1641</wheel_diameter>
+      <torque>20</torque>
+      <topic>cmd_vel</topic>
+      <body_frame>chassis</body_frame>
+      <odometry_frame>odometry</odometry_frame>
+      <odometry_topic>odom</odometry_topic>
+      <enable_odometry>true</enable_odometry>
+    </plugin>
+  </model>
+</sdf>
