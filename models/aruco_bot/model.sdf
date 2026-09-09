@@ -42,9 +42,9 @@
 
     <!-- Left wheel -->
     <link name="left_wheel">
-      <pose>-0.1 0.15 0.1 0 0 0</pose>
+      <pose>0 0.15 0.1 0 0 0</pose>
       <visual name="left_wheel_visual">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0 1.5708 0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.05</radius>
@@ -58,7 +58,7 @@
         </material>
       </visual>
       <collision name="left_wheel_collision">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0 1.5708 0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.05</radius>
@@ -79,9 +79,9 @@
 
     <!-- Right wheel -->
     <link name="right_wheel">
-      <pose>-0.1 -0.15 0.1 0 0 0</pose>
+      <pose>0 -0.15 0.1 0 0 0</pose>
       <visual name="right_wheel_visual">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0 1.5708 0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.05</radius>
@@ -95,7 +95,7 @@
         </material>
       </visual>
       <collision name="right_wheel_collision">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0 1.5708 0 0</pose>
         <geometry>
           <cylinder>
             <radius>0.05</radius>
@@ -118,10 +118,10 @@
     <link name="aruco_marker_link">
       <pose>0.1 0 0.31 0 0 0</pose> <!-- Positioned on top of the chassis -->
       <visual name="aruco_marker_visual">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0 1.5708 0 0</pose>
         <geometry>
           <box>
-            <size>0.1 0.1 0.02</size> <!-- 10cm x 10cm ArUco marker -->
+            <size>0.1 0.02 0.1</size> <!-- 10cm x 10cm ArUco marker, rotated to be perpendicular -->
           </box>
         </geometry>
         <material>
@@ -134,10 +134,10 @@
         </material>
       </visual>
       <collision name="aruco_marker_collision">
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0 1.5708 0 0</pose>
         <geometry>
           <box>
-            <size>0.1 0.1 0.02</size>
+            <size>0.1 0.02 0.1</size>
           </box>
         </geometry>
       </collision>
@@ -145,9 +145,9 @@
         <pose>0 0 0 0 0 0</pose>
         <mass>0.01</mass>
         <inertia>
-          <ixx>1.6667e-05</ixx>
+          <ixx>8.667e-06</ixx>
           <iyy>1.6667e-05</iyy>
-          <izz>3.3333e-05</izz>
+          <izz>8.667e-06</izz>
         </inertia>
       </inertial>
     </link>
