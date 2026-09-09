@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<sdf version="1.9">
+<sdf version="1.8">
   <model name="aruco_bot">
     <!-- Base link with simple rectangular chassis -->
     <link name="base_link">
@@ -14,9 +14,9 @@
           </box>
         </geometry>
         <material>
-          <script>
-            <name>Gazebo/Gray</name>
-          </script>
+          <ambient>0.3 0.0 0.0 1.0</ambient>
+          <diffuse>0.7 0.0 0.0 1.0</diffuse>
+          <specular>0.5 0.0 0.0 1.0</specular>
         </material>
       </visual>
       
@@ -52,9 +52,9 @@
           </cylinder>
         </geometry>
         <material>
-          <script>
-            <name>Gazebo/Black</name>
-          </script>
+          <ambient>0.1 0.1 0.1 1.0</ambient>
+          <diffuse>0.2 0.2 0.2 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1.0</specular>
         </material>
       </visual>
       <collision name="left_wheel_collision">
@@ -89,9 +89,9 @@
           </cylinder>
         </geometry>
         <material>
-          <script>
-            <name>Gazebo/Black</name>
-          </script>
+          <ambient>0.1 0.1 0.1 1.0</ambient>
+          <diffuse>0.2 0.2 0.2 1.0</diffuse>
+          <specular>0.1 0.1 0.1 1.0</specular>
         </material>
       </visual>
       <collision name="right_wheel_collision">
@@ -125,10 +125,12 @@
           </box>
         </geometry>
         <material>
-          <script>
-            <name>Gazebo/White</name>
-          </script>
-          <!-- In a real scenario, you'd use a custom material with ArUco pattern texture -->
+          <ambient>1.0 1.0 1.0 1.0</ambient>
+          <diffuse>1.0 1.0 1.0 1.0</diffuse>
+          <specular>0.0 0.0 0.0 1.0</specular>
+          <texture>
+            <diffuse>model://aruco_bot/materials/aruco_4x4_0.png</diffuse>
+          </texture>
         </material>
       </visual>
       <collision name="aruco_marker_collision">
@@ -193,6 +195,13 @@
     <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
       <joint_name>left_wheel_joint</joint_name>
       <joint_name>right_wheel_joint</joint_name>
+    </plugin>
+
+    <!-- Pose Publisher for the model -->
+    <plugin filename="gz-sim-pose-publisher-system" name="gz::sim::systems::PosePublisher">
+      <topic>pose</topic>
+      <frame_id>world</frame_id>
+      <publish_frequency>50</publish_frequency>
     </plugin>
 
     <!-- ArUco marker frame for detection reference -->

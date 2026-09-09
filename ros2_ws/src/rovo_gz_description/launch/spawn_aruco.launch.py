@@ -1,39 +1,50 @@
-"""Spawn ArUco marker or ArUco bot into an existing Gazebo Sim world.
+"""Spawn ArUco bot into an existing Gazebo Sim world.
 
-This launch file spawns either a static ArUco marker or a mobile ArUco bot
-into a running Gazebo simulation. For the mobile ArUco bot, it also sets up
-a cmd_vel publisher to make the robot move autonomously.
+This launch file spawns a mobile ArUco bot into a running Gazebo simulation,
+creates a bridge node for cmd_vel, and launches teleop and joy nodes for controller input.
 
-It assumes a gz server is already running (started by another launch file or the user).
+It assumes a gz server and world are already running (started by another launch file).
+The world name is auto-detected from the running simulation.
 
 Usage:
-  # Spawn static ArUco marker
+  # Spawn ArUco bot with teleop controller
   ros2 launch rovo_gz_description spawn_aruco.launch.py
 
-  # Spawn mobile ArUco bot with circular movement
-  ros2 launch rovo_gz_description spawn_aruco.launch.py model_type:=bot marker_name:=aruco_bot
-
-  # Spawn mobile ArUco bot with custom movement pattern
-  ros2 launch rovo_gz_description spawn_aruco.launch.py model_type:=bot marker_name:=aruco_bot movement:=circle radius:=2.0 speed:=0.5
+  # Spawn ArUco bot at custom position
+  ros2 launch rovo_gz_description spawn_aruco.launch.py x:=2.0 y:=-1.0 marker_name:=my_aruco_bot
 """
-import os
-from ament_index_python.packages import get_package_share_directory
+import re
+import subprocess
+import tempfile
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     OpaqueFunction,
-    SetEnvironmentVariable,
     TimerAction,
 )
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
-PKG = "rovo_gz_description"
+def _get_world_name():
+    """Query running Gazebo Sim for the world name."""
+    try:
+        result = subprocess.run(
+            ['gz', 'topic', '-l'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        for line in result.stdout.splitlines():
+            match = re.match(r'world/([^/]+)/', line)
+            if match:
+                return match.group(1)
+    except Exception:
+        pass
+    return "empty"
 
 
 def _launch_setup(context, *args, **kwargs):
-    pkg_share = get_package_share_directory(PKG)
 
     # Get launch configurations
     x = LaunchConfiguration("x").perform(context)
@@ -43,27 +54,14 @@ def _launch_setup(context, *args, **kwargs):
     pitch = LaunchConfiguration("pitch").perform(context)
     yaw = LaunchConfiguration("yaw").perform(context)
     marker_name = LaunchConfiguration("marker_name").perform(context)
-    model_type = LaunchConfiguration("model_type").perform(context)
     world = LaunchConfiguration("world").perform(context)
-    movement = LaunchConfiguration("movement").perform(context)
-    radius = LaunchConfiguration("radius").perform(context)
-    speed = LaunchConfiguration("speed").perform(context)
+    
+    # Auto-detect world name from running simulation if not specified
+    if world == "empty":
+        world = _get_world_name()
 
-    # Set GZ_SIM_RESOURCE_PATH to include the models directory
-    models_path = os.path.join(os.path.dirname(pkg_share), "models")
-    set_gz_path = SetEnvironmentVariable(
-        name="GZ_SIM_RESOURCE_PATH",
-        value=os.pathsep.join([
-            models_path,
-            os.environ.get("GZ_SIM_RESOURCE_PATH", ""),
-        ]),
-    )
-
-    # Determine which model to spawn
-    if model_type == "bot":
-        model_uri = "model://aruco_bot"
-    else:
-        model_uri = "model://aruco_marker"
+    # Always spawn the ArUco bot
+    model_uri = "model://aruco_bot"
 
     # Spawn the model using ros_gz_sim create
     spawn_node = Node(
@@ -74,71 +72,76 @@ def _launch_setup(context, *args, **kwargs):
             "-name", marker_name,
             "-x", x, "-y", y, "-z", z,
             "-R", roll, "-P", pitch, "-Y", yaw,
-        ],
-        parameters=[
-            {"model": model_uri},
+            "-file", model_uri,
         ],
         output="screen",
     )
 
-    actions = [set_gz_path, spawn_node]
-
-    # For the bot, add a cmd_vel publisher to make it move
-    if model_type == "bot":
-        # The gazebo sim will have a topic like: /world/{world}/model/{marker_name}/cmd_vel
-        # We'll publish to the ROS side via ros_gz_bridge
-        ros_cmd_vel_topic = f"/aruco/{marker_name}/cmd_vel"
-        gz_cmd_vel_topic = f"world/{world}/model/{marker_name}/cmd_vel"
-        
-        # Create a bridge config for this specific aruco bot
-        import tempfile
-        bridge_yaml_content = f"""- ros_topic_name: "{ros_cmd_vel_topic}"
+    # Create bridge for cmd_vel, odom, and joint_state
+    ros_cmd_vel_topic = f"/aruco/{marker_name}/cmd_vel"
+    gz_cmd_vel_topic = f"world/{world}/model/{marker_name}/cmd_vel"
+    ros_odom_topic = f"/aruco/{marker_name}/odom"
+    gz_odom_topic = f"world/{world}/model/{marker_name}/odom"
+    ros_joint_state_topic = f"/aruco/{marker_name}/joint_state"
+    gz_joint_state_topic = f"world/{world}/model/{marker_name}/joint_state"
+    
+    bridge_yaml_content = f"""- ros_topic_name: "{ros_cmd_vel_topic}"
   gz_topic_name: "{gz_cmd_vel_topic}"
   ros_type_name: "geometry_msgs/msg/Twist"
   gz_type_name: "gz.msgs.Twist"
   direction: ROS_TO_GZ
+- ros_topic_name: "{ros_odom_topic}"
+  gz_topic_name: "{gz_odom_topic}"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+- ros_topic_name: "{ros_joint_state_topic}"
+  gz_topic_name: "{gz_joint_state_topic}"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
 """
-        tmp_bridge_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
-        tmp_bridge_file.write(bridge_yaml_content)
-        tmp_bridge_file.flush()
-        
-        # Bridge node
-        bridge_node = TimerAction(
-            period=2.5,
-            actions=[
-                Node(
-                    package="ros_gz_bridge",
-                    executable="parameter_bridge",
-                    name=f"aruco_{marker_name}_bridge",
-                    parameters=[
-                        {"config_file": tmp_bridge_file.name},
-                        {"use_sim_time": True}
-                    ],
-                    output="log"
-                )
-            ]
-        )
-        
-        # Movement publisher node
-        movement_node = TimerAction(
-            period=3.0,  # Give bridge time to start
-            actions=[
-                Node(
-                    package="rovo_gz_description",
-                    executable="aruco_bot_movement.py",
-                    name=f"aruco_{marker_name}_movement",
-                    parameters=[
-                        {"cmd_vel_topic": ros_cmd_vel_topic},
-                        {"movement_pattern": movement},
-                        {"radius": float(radius)},
-                        {"speed": float(speed)},
-                        {"use_sim_time": True}
-                    ],
-                    output="log"
-                )
-            ]
-        )
-        actions.extend([bridge_node, movement_node])
+    tmp_bridge_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+    tmp_bridge_file.write(bridge_yaml_content)
+    tmp_bridge_file.flush()
+    
+    bridge_node = TimerAction(
+        period=2.5,
+        actions=[
+            Node(
+                package="ros_gz_bridge",
+                executable="parameter_bridge",
+                name=f"aruco_{marker_name}_bridge",
+                parameters=[
+                    {"config_file": tmp_bridge_file.name},
+                    {"use_sim_time": True}
+                ],
+
+                output="log"
+            )
+        ]
+    )
+
+    # Joy node for controller input
+    joy_node = Node(
+        package="joy",
+        executable="joy_node",
+        name="joy",
+        parameters=[{"dev": "/dev/input/js0"}],
+        output="log"
+    )
+
+    # Teleop node - publishes to the bot's cmd_vel topic
+    teleop_node = Node(
+        package="teleop_twist_joy",
+        executable="teleop_node",
+        name="teleop_twist_joy",
+        remappings=[("cmd_vel", ros_cmd_vel_topic)],
+        parameters=[{"use_sim_time": True}],
+        output="log"
+    )
+
+    actions = [spawn_node, bridge_node, joy_node, teleop_node]
 
     return actions
 
@@ -157,17 +160,9 @@ def generate_launch_description():
                                description="Pitch angle to spawn the model"),
         DeclareLaunchArgument("yaw", default_value="0.0",
                               description="Yaw angle to spawn the model"),
-        DeclareLaunchArgument("marker_name", default_value="aruco_marker",
-                              description="Name of the spawned entity"),
-        DeclareLaunchArgument("model_type", default_value="marker",
-                              description="Type of model: 'marker' for static ArUco, 'bot' for mobile robot with ArUco"),
+        DeclareLaunchArgument("marker_name", default_value="aruco_bot",
+                              description="Name of the spawned ArUco bot"),
         DeclareLaunchArgument("world", default_value="empty",
                               description="Name of the Gazebo world (for topic namespacing)"),
-        DeclareLaunchArgument("movement", default_value="circle",
-                              description="Movement pattern: 'circle', 'square', 'figure8', 'backforth', or 'stop'"),
-        DeclareLaunchArgument("radius", default_value="2.0",
-                              description="Radius for circular movement (meters)"),
-        DeclareLaunchArgument("speed", default_value="0.5",
-                              description="Movement speed (m/s)"),
         OpaqueFunction(function=_launch_setup),
     ])
