@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  rovosim:
+    build:
+      context: .
+      args:
+        ROS2_DISTRO: ${ROS2_DISTRO:-rolling}
+        GZ_VERSION: ${GZ_VERSION:-rolling}
+    image: rovosim:latest
+    container_name: rovosim
+    runtime: nvidia
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_zenoh_cpp}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./ros2_ws:/opt/ros2_ws
+      - ./gz_cache:/root/.gz
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/bus/usb:/dev/bus/usb
+    privileged: true
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: -1
+    stdin_open: true
+    tty: true
+    ports:
+      - "8080:8080"
+    working_dir: /opt/ros2_ws
+    network_mode: host
