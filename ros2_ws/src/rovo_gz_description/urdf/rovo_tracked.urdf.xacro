@@ -1,0 +1,366 @@
+<?xml version="1.0"?>
+<!--
+  rovo_tracked.urdf.xacro
+  Tracked-vehicle variant of Rovo using gz-sim TrackedVehicle plugin.
+
+  Differences from rovo_diff_drive.urdf.xacro:
+    - 2 long flat box "track" links replace 2 cylinder drive wheels.
+    - Track links are FIXED to base_link (no continuous joints).
+    - gz-sim-tracked-vehicle-system + gz-sim-track-controller-system replace
+      gz-sim-diff-drive-system.
+    - cmd_vel input topic same; odom output topic same.
+
+  Why tracked: flat track footprint gives real pitch stability — robot does
+  not lean forward like a 2-wheel diff-drive. Also realistic skid-steer
+  rotation in place.
+-->
+<robot name="rovo" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+
+  <xacro:property name="pkg"             value="rovo_gz_description"/>
+
+  <xacro:property name="base_mass"       value="340.0"/>  <!-- total 350 kg: 340 body + 2x5 tracks -->
+  <xacro:property name="base_x"          value="1.464"/>
+  <xacro:property name="base_y"          value="1.312"/>
+  <xacro:property name="base_z"          value="0.728"/>
+
+  <!-- Track geometry — equivalent flat contact patch -->
+  <xacro:property name="track_mass"      value="5.0"/>
+  <xacro:property name="track_len"       value="1.20"/>   <!-- X: along forward -->
+  <xacro:property name="track_width"     value="0.18"/>   <!-- Y: side-to-side -->
+  <xacro:property name="track_height"    value="0.10"/>   <!-- Z: thickness -->
+  <xacro:property name="track_y"         value="0.547"/>  <!-- half-separation -->
+  <xacro:property name="track_z"         value="0.05"/>   <!-- track center Z (bottom @ 0) -->
+
+  <!-- ============================================================ -->
+  <!-- Macros                                                       -->
+  <!-- ============================================================ -->
+  <xacro:macro name="box_inertia" params="m x y z cx:=0 cy:=0 cz:=0">
+    <inertial>
+      <origin xyz="${cx} ${cy} ${cz}" rpy="0 0 0"/>
+      <mass value="${m}"/>
+      <inertia
+        ixx="${m*(y*y+z*z)/12.0}" ixy="0" ixz="0"
+        iyy="${m*(x*x+z*z)/12.0}" iyz="0"
+        izz="${m*(x*x+y*y)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="track" params="side reflect">
+    <link name="${side}_track">
+      <!-- No <visual>: body mesh already renders the tracks. URDF alpha=0
+           is dropped in gz-sim conversion, producing a stray white box. -->
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${track_len} ${track_width} ${track_height}"/>
+        </geometry>
+      </collision>
+      <xacro:box_inertia m="${track_mass}"
+                         x="${track_len}" y="${track_width}" z="${track_height}"/>
+    </link>
+
+    <joint name="${side}_track_joint" type="fixed">
+      <parent link="base_link"/>
+      <child  link="${side}_track"/>
+      <origin xyz="0 ${reflect*track_y} ${track_z}" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Prevent URDF→SDF fixed-joint lumping. Without this, track link is
+         merged into base_footprint and TrackController plugin cannot find
+         it by name → robot will not move. -->
+    <gazebo reference="${side}_track_joint">
+      <preserveFixedJoint>true</preserveFixedJoint>
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <gazebo reference="${side}_track">
+      <!-- mu1: longitudinal grip; mu2: lateral — higher reduces sideways skid.
+           kp/kd: stiff contact for 60 kg robot prevents sinking/bouncing. -->
+      <mu1>1.5</mu1>
+      <mu2>0.8</mu2>
+      <kp>5e6</kp>
+      <kd>200.0</kd>
+      <minDepth>0.002</minDepth>
+      <maxVel>0.5</maxVel>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- ============================================================ -->
+  <!-- base_footprint (ground projection, child of base_link)       -->
+  <!-- base_link is the model root: DLIO owns odom->base_link, so    -->
+  <!-- base_footprint must hang UNDER base_link to avoid base_link    -->
+  <!-- having two parents (odom + base_footprint) -> split TF tree.   -->
+  <!-- ============================================================ -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_to_base" type="fixed">
+    <parent link="base_link"/>
+    <child  link="base_footprint"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================================================ -->
+  <!-- base_link                                                    -->
+  <!-- ============================================================ -->
+  <link name="base_link">
+
+    <xacro:macro name="vis" params="name">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 ${pi/2}"/>
+        <geometry>
+          <mesh filename="package://${pkg}/meshes/visual/${name}.dae"/>
+        </geometry>
+      </visual>
+    </xacro:macro>
+
+    <xacro:macro name="vis_black" params="name">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 ${pi/2}"/>
+        <geometry>
+          <mesh filename="package://${pkg}/meshes/visual/${name}.dae"/>
+        </geometry>
+        <material name="track_black">
+          <color rgba="0.05 0.05 0.05 1.0"/>
+        </material>
+      </visual>
+    </xacro:macro>
+
+    <xacro:macro name="vis_sensor" params="name">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 ${pi/2}"/>
+        <geometry>
+          <mesh filename="package://${pkg}/meshes/visual/${name}.dae"/>
+        </geometry>
+      </visual>
+    </xacro:macro>
+
+    <xacro:vis name="body"/>
+    <xacro:vis name="camera_holder"/>
+    <xacro:vis name="lightbody"/>
+    <xacro:vis name="pipes"/>
+    <xacro:vis name="wheel_holder"/>
+    <xacro:vis_black name="wheelTrack_new"/>
+    <xacro:vis_black name="wheelTrack_new_001"/>
+
+    <!-- Sensor visuals — world-space baked from body_modified.glb -->
+    <xacro:vis_sensor name="sensor_IMU_LIdar_GPS_Mini"/>
+    <xacro:vis_sensor name="sensor_velodyne_lidar"/>
+    <xacro:vis_sensor name="sensor_Realsense_camera"/>
+    <xacro:vis_sensor name="sensor_GPS_antenna"/>
+    <xacro:vis_sensor name="sensor_Sensor_head_mount"/>
+
+    <xacro:vis name="wl"/>
+    <xacro:vis name="wl1"/>
+    <xacro:vis name="wl2"/>
+    <xacro:vis name="wl3"/>
+    <xacro:vis name="wl4"/>
+    <xacro:vis name="wl5"/>
+    <xacro:vis name="wl6"/>
+    <xacro:vis name="wr"/>
+    <xacro:vis name="wr1"/>
+    <xacro:vis name="wr2"/>
+    <xacro:vis name="wr3"/>
+    <xacro:vis name="wr4"/>
+    <xacro:vis name="wr5"/>
+    <xacro:vis name="wr6"/>
+
+    <!-- Chassis collision lifted so tracks are the only ground contact. -->
+    <collision name="chassis_box">
+      <origin xyz="0.013 0 0.544" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_x} ${base_y} ${base_z}"/>
+      </geometry>
+    </collision>
+
+    <xacro:box_inertia m="${base_mass}" x="${base_x}" y="${base_y}" z="${base_z}"
+                       cx="0" cy="0" cz="0.40"/>
+  </link>
+
+  <gazebo reference="base_link">
+    <mu1>0.05</mu1>
+    <mu2>0.05</mu2>
+    <kp>5e5</kp>
+    <kd>50.0</kd>
+    <minDepth>0.003</minDepth>
+  </gazebo>
+
+  <!-- ============================================================ -->
+  <!-- Track links                                                  -->
+  <!-- ============================================================ -->
+  <xacro:track side="left"  reflect="1"/>
+  <xacro:track side="right" reflect="-1"/>
+
+  <!-- ============================================================ -->
+  <!-- IMU                                                          -->
+  <!-- ============================================================ -->
+  <link name="phiimu_frame2">
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="phiimu_frame2"/>
+    <origin xyz="0.548019 -0.02886 0.829417" rpy="-0.004375 -0.060599 1.610255"/>
+  </joint>
+
+  <!-- ============================================================ -->
+  <!-- Velodyne                                                     -->
+  <!-- ============================================================ -->
+  <link name="velodyne">
+    <inertial>
+      <mass value="0.83"/>
+      <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+    </inertial>
+  </link>
+  <joint name="velodyne_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="velodyne"/>
+    <origin xyz="0.475 0 1.05" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================================================ -->
+  <!-- GPS                                                          -->
+  <!-- ============================================================ -->
+  <link name="gps_link">
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+  <joint name="gps_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="gps_link"/>
+    <origin xyz="0.475 0 1.11" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============================================================ -->
+  <!-- RealSense Depth Camera                                       -->
+  <!-- ============================================================ -->
+  <link name="realsense_link">
+    <inertial>
+      <mass value="0.072"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
+  </link>
+
+  <joint name="realsense_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="realsense_link"/>
+    <origin xyz="0.55 0 1.25" rpy="0 -0.1745 0"/>
+  </joint>
+
+  <!-- ============================================================ -->
+  <!-- Gazebo Sim plugins                                           -->
+  <!-- ============================================================ -->
+  <gazebo>
+    <!-- TrackedVehicle: top-level skid-steer controller.
+         Subscribes /cmd_vel (Twist), distributes to TrackController. -->
+    <plugin filename="gz-sim-tracked-vehicle-system"
+            name="gz::sim::systems::TrackedVehicle">
+      <left_track><link>left_track</link></left_track>
+      <right_track><link>right_track</link></right_track>
+      <tracks_separation>${2*track_y}</tracks_separation>
+      <tracks_height>${track_height}</tracks_height>
+      <steering_efficiency>0.75</steering_efficiency>
+      <topic>cmd_vel_gcs</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic></tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+      <odom_publish_frequency>50</odom_publish_frequency>
+    </plugin>
+
+    <!-- Per-track friction controllers — simulate belt grip+slip. -->
+    <plugin filename="gz-sim-track-controller-system"
+            name="gz::sim::systems::TrackController">
+      <link>left_track</link>
+      <min_velocity>-3.0</min_velocity>
+      <max_velocity>3.0</max_velocity>
+    </plugin>
+
+    <plugin filename="gz-sim-track-controller-system"
+            name="gz::sim::systems::TrackController">
+      <link>right_track</link>
+      <min_velocity>-3.0</min_velocity>
+      <max_velocity>3.0</max_velocity>
+    </plugin>
+
+    <!-- No JointStatePublisher: tracks are fixed, no continuous joints. -->
+
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+  </gazebo>
+
+  <gazebo reference="phiimu_frame2">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>1</always_on>
+      <update_rate>100</update_rate>
+      <topic>imu/data2</topic>
+      <gz_frame_id>phiimu_frame2</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="velodyne">
+    <sensor name="velodyne_sensor" type="gpu_lidar">
+      <always_on>1</always_on>
+      <update_rate>10</update_rate>
+      <topic>/velodyne_points</topic>
+      <gz_frame_id>velodyne</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>1875</samples><resolution>1</resolution>
+            <min_angle>-${pi}</min_angle><max_angle>${pi}</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>16</samples><resolution>1</resolution>
+            <min_angle>-${15.0*pi/180.0}</min_angle>
+            <max_angle>${15.0*pi/180.0}</max_angle>
+          </vertical>
+        </scan>
+        <range><min>0.1</min><max>100.0</max><resolution>0.01</resolution></range>
+        <noise><type>gaussian</type><mean>0.0</mean><stddev>0.01</stddev></noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <gazebo reference="realsense_link">
+    <sensor name="realsense_sensor" type="rgbd_camera">
+      <always_on>1</always_on>
+      <update_rate>30</update_rate>
+      <topic>camera/camera</topic>
+      <gz_frame_id>realsense_link</gz_frame_id>
+      <camera>
+        <horizontal_fov>1.5184</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>RGB_INT8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <depth_camera>
+          <clip><near>0.105</near><far>10.0</far></clip>
+        </depth_camera>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- ============================================================ -->
+  <!-- GPS NavSat                                                    -->
+  <!-- ============================================================ -->
+  <gazebo reference="gps_link">
+    <sensor name="gps_sensor" type="navsat">
+      <always_on>1</always_on>
+      <update_rate>10</update_rate>
+      <topic>gps/fix1</topic>
+      <gz_frame_id>gps_link</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+</robot>

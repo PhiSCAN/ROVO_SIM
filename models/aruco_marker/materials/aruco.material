@@ -1,0 +1,33 @@
+// Gazebo material script for ArUco marker
+// This is a basic material definition that can be extended
+// with actual ArUco marker patterns
+
+material aruco_marker/white
+{
+  receive_shadows on
+  shading flat
+  ambient 1 1 1 1
+  diffuse 1 1 1 1
+  specular 0 0 0 1
+  emissive 0 0 0 1
+  shininess 0.1
+}
+
+// Example for a black ArUco marker border
+material aruco_marker/black
+{
+  receive_shadows on
+  shading flat
+  ambient 0 0 0 1
+  diffuse 0 0 0 1
+  specular 0 0 0 1
+  emissive 0 0 0 1
+  shininess 0.1
+}
+
+// To use these materials in your SDF:
+// <material>
+//   <script>
+//     <name>aruco_marker/white</name>
+//   </script>
+// </material>

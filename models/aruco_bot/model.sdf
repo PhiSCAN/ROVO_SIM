@@ -1,0 +1,203 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="aruco_bot">
+    <!-- Base link with simple rectangular chassis -->
+    <link name="base_link">
+      <pose>0 0 0.1 0 0 0</pose>
+      
+      <!-- Simple box chassis -->
+      <visual name="chassis_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.4 0.3 0.2</size> <!-- length, width, height -->
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Gray</name>
+          </script>
+        </material>
+      </visual>
+      
+      <collision name="chassis_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.4 0.3 0.2</size>
+          </box>
+        </geometry>
+      </collision>
+      
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>10.0</mass>
+        <inertia>
+          <ixx>0.4</ixx>
+          <iyy>0.4</iyy>
+          <izz>0.6</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <!-- Left wheel -->
+    <link name="left_wheel">
+      <pose>-0.1 0.15 0.1 0 0 0</pose>
+      <visual name="left_wheel_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.08</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Black</name>
+          </script>
+        </material>
+      </visual>
+      <collision name="left_wheel_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.08</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.001</ixx>
+          <iyy>0.001</iyy>
+          <izz>0.001</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <!-- Right wheel -->
+    <link name="right_wheel">
+      <pose>-0.1 -0.15 0.1 0 0 0</pose>
+      <visual name="right_wheel_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.08</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/Black</name>
+          </script>
+        </material>
+      </visual>
+      <collision name="right_wheel_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.05</radius>
+            <length>0.08</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.001</ixx>
+          <iyy>0.001</iyy>
+          <izz>0.001</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <!-- ArUco Marker on top of the robot -->
+    <link name="aruco_marker_link">
+      <pose>0.1 0 0.31 0 0 0</pose> <!-- Positioned on top of the chassis -->
+      <visual name="aruco_marker_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.1 0.1 0.02</size> <!-- 10cm x 10cm ArUco marker -->
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/White</name>
+          </script>
+          <!-- In a real scenario, you'd use a custom material with ArUco pattern texture -->
+        </material>
+      </visual>
+      <collision name="aruco_marker_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.1 0.1 0.02</size>
+          </box>
+        </geometry>
+      </collision>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>1.6667e-05</ixx>
+          <iyy>1.6667e-05</iyy>
+          <izz>3.3333e-05</izz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <!-- Fixed joint for ArUco marker -->
+    <joint name="aruco_marker_joint" type="fixed">
+      <parent>base_link</parent>
+      <child>aruco_marker_link</child>
+    </joint>
+
+    <!-- Left wheel joint -->
+    <joint name="left_wheel_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>left_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
+    <!-- Right wheel joint -->
+    <joint name="right_wheel_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>right_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+      </axis>
+    </joint>
+
+    <!-- Diff Drive Plugin -->
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.3</wheel_separation> <!-- Distance between wheels -->
+      <wheel_radius>0.05</wheel_radius>
+      <max_linear_acceleration>1.0</max_linear_acceleration>
+      <max_angular_velocity>1.0</max_angular_velocity>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_link</child_frame_id>
+      <odom_publish_frequency>50</odom_publish_frequency>
+    </plugin>
+
+    <!-- Joint State Publisher -->
+    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
+      <joint_name>left_wheel_joint</joint_name>
+      <joint_name>right_wheel_joint</joint_name>
+    </plugin>
+
+    <!-- ArUco marker frame for detection reference -->
+    <frame name="aruco_marker_frame" attached_to="aruco_marker_link">
+      <pose relative_to="aruco_marker_link">0 0 0.01 0 0 0</pose>
+    </frame>
+  </model>
+</sdf>

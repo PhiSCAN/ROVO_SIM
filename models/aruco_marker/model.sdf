@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <model name="aruco_marker">
+    <pose frame="">0 0 0 0 0 0</pose>
+    <link name="marker_link">
+      <pose relative_to="">0 0 0.01 0 0 0</pose>
+      <visual name="marker_visual">
+        <pose relative_to="">0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.1 0.1 0.02</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/White</name>
+          </script>
+          <!-- ArUco marker pattern will be applied via texture in a real scenario -->
+          <!-- For actual ArUco detection, you might want to use a custom material with the specific marker image -->
+        </material>
+      </visual>
+      <collision name="marker_collision">
+        <pose relative_to="">0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.1 0.1 0.02</size>
+          </box>
+        </geometry>
+      </collision>
+      <inertial>
+        <pose relative_to="">0 0 0 0 0 0</pose>
+        <mass>0.01</mass>
+        <inertia>
+          <ixx>1.6667e-05</ixx>
+          <iyy>1.6667e-05</iyy>
+          <izz>3.3333e-05</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+    </link>
+
+    <!-- Optional: Add a frame that represents the marker's coordinate system -->
+    <!-- This can be useful for referencing the marker's pose in the world -->
+    <frame name="marker_frame" attached_to="marker_link">
+      <pose relative_to="marker_link">0 0 0.015 0 0 0</pose>
+    </frame>
+  </model>
+</sdf>
