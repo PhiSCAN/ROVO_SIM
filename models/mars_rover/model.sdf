@@ -146,11 +146,11 @@
       </visual>
 
       <inertial>
-        <mass>100.0</mass>
+        <mass>50.0</mass>
         <inertia>
-          <ixx>10.0</ixx>
-          <iyy>10.0</iyy>
-          <izz>10.0</izz>
+          <ixx>2.24</ixx>
+          <iyy>1.37</iyy>
+          <izz>2.92</izz>
         </inertia>
       </inertial>
     </link>
@@ -174,11 +174,11 @@
         </geometry>
       </visual>
       <inertial>
-        <mass>5.0</mass>
+        <mass>2.5</mass>
         <inertia>
-          <ixx>0.1</ixx>
-          <iyy>0.1</iyy>
-          <izz>0.1</izz>
+          <ixx>0.02</ixx>
+          <iyy>0.02</iyy>
+          <izz>0.02</izz>
         </inertia>
       </inertial>
     </link>
@@ -202,11 +202,11 @@
         </geometry>
       </visual>
       <inertial>
-        <mass>5.0</mass>
+        <mass>2.5</mass>
         <inertia>
-          <ixx>0.1</ixx>
-          <iyy>0.1</iyy>
-          <izz>0.1</izz>
+          <ixx>0.02</ixx>
+          <iyy>0.02</iyy>
+          <izz>0.02</izz>
         </inertia>
       </inertial>
     </link>
@@ -230,11 +230,11 @@
         </geometry>
       </visual>
       <inertial>
-        <mass>5.0</mass>
+        <mass>2.5</mass>
         <inertia>
-          <ixx>0.1</ixx>
-          <iyy>0.1</iyy>
-          <izz>0.1</izz>
+          <ixx>0.02</ixx>
+          <iyy>0.02</iyy>
+          <izz>0.02</izz>
         </inertia>
       </inertial>
     </link>
@@ -258,11 +258,11 @@
         </geometry>
       </visual>
       <inertial>
-        <mass>5.0</mass>
+        <mass>2.5</mass>
         <inertia>
-          <ixx>0.1</ixx>
-          <iyy>0.1</iyy>
-          <izz>0.1</izz>
+          <ixx>0.02</ixx>
+          <iyy>0.02</iyy>
+          <izz>0.02</izz>
         </inertia>
       </inertial>
     </link>
@@ -271,7 +271,7 @@
       <parent>chassis</parent>
       <child>front_left_wheel</child>
       <axis>
-        <xyz>0 1 0</xyz>
+        <xyz>1 0 0</xyz>
       </axis>
     </joint>
 
@@ -279,7 +279,7 @@
       <parent>chassis</parent>
       <child>front_right_wheel</child>
       <axis>
-        <xyz>0 1 0</xyz>
+        <xyz>1 0 0</xyz>
       </axis>
     </joint>
 
@@ -287,7 +287,7 @@
       <parent>chassis</parent>
       <child>rear_left_wheel</child>
       <axis>
-        <xyz>0 1 0</xyz>
+        <xyz>1 0 0</xyz>
       </axis>
     </joint>
 
@@ -295,11 +295,11 @@
       <parent>chassis</parent>
       <child>rear_right_wheel</child>
       <axis>
-        <xyz>0 1 0</xyz>
+        <xyz>1 0 0</xyz>
       </axis>
     </joint>
 
-    <!-- <model name="aruco_marker">
+    <model name="aruco_marker">
       <pose>0 0 0.7 1.5708 0 0</pose>
       <include>
         <uri>model://aruco_box</uri>
@@ -309,24 +309,18 @@
     <joint name="aruco_marker_joint" type="fixed">
       <parent>chassis</parent>
       <child>aruco_marker</child>
-    </joint> -->
+    </joint>
 
     <plugin filename="gz-sim-mecanum-drive-system" name="gz::sim::systems::MecanumDrive">
-      <ros>
-        <namespace>aruco</namespace>
-        <remapping>cmd_vel:=cmd_vel</remapping>
-      </ros>
-      <update_rate>50</update_rate>
-      <left_joint>rear_left_wheel_joint</left_joint>
-      <right_joint>rear_right_wheel_joint</right_joint>
       <front_left_joint>front_left_wheel_joint</front_left_joint>
       <front_right_joint>front_right_wheel_joint</front_right_joint>
+      <back_left_joint>rear_left_wheel_joint</back_left_joint>
+      <back_right_joint>rear_right_wheel_joint</back_right_joint>
       <wheel_separation>0.62206</wheel_separation>
+      <wheel_base>0.60164</wheel_base>
       <wheel_radius>0.1358</wheel_radius>
       <topic>aruco_bot/cmd_vel</topic>
-      <body_frame>chassis</body_frame>
-      <min_acceleration>-10</min_acceleration>
-      <max_acceleration>10</max_acceleration>
     </plugin>
+
   </model>
 </sdf>
