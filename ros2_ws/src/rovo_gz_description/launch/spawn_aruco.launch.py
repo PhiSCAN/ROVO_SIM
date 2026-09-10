@@ -16,7 +16,6 @@ Usage:
 import os
 import re
 import subprocess
-import tempfile
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -93,33 +92,12 @@ def _launch_setup(context, *args, **kwargs):
         output="screen",
     )
 
-    # Create bridge for cmd_vel, odom, and joint_state
-    ros_cmd_vel_topic = f"/aruco/{marker_name}/cmd_vel"
-    gz_cmd_vel_topic = f"world/{world}/model/{marker_name}/cmd_vel"
-    ros_odom_topic = f"/aruco/{marker_name}/odom"
-    gz_odom_topic = f"world/{world}/model/{marker_name}/odom"
-    ros_joint_state_topic = f"/aruco/{marker_name}/joint_state"
-    gz_joint_state_topic = f"world/{world}/model/{marker_name}/joint_state"
+    # Load bridge config from YAML file
+    pkg_share = get_package_share_directory('rovo_gz_description')
+    bridge_config_path = os.path.join(pkg_share, 'config', 'aruco_bridge.yaml')
     
-    bridge_yaml_content = f"""- ros_topic_name: "{ros_cmd_vel_topic}"
-  gz_topic_name: "{gz_cmd_vel_topic}"
-  ros_type_name: "geometry_msgs/msg/Twist"
-  gz_type_name: "gz.msgs.Twist"
-  direction: ROS_TO_GZ
-- ros_topic_name: "{ros_odom_topic}"
-  gz_topic_name: "{gz_odom_topic}"
-  ros_type_name: "nav_msgs/msg/Odometry"
-  gz_type_name: "gz.msgs.Odometry"
-  direction: GZ_TO_ROS
-- ros_topic_name: "{ros_joint_state_topic}"
-  gz_topic_name: "{gz_joint_state_topic}"
-  ros_type_name: "sensor_msgs/msg/JointState"
-  gz_type_name: "gz.msgs.Model"
-  direction: GZ_TO_ROS
-"""
-    tmp_bridge_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
-    tmp_bridge_file.write(bridge_yaml_content)
-    tmp_bridge_file.flush()
+    # ROS cmd_vel topic for teleop remapping
+    ros_cmd_vel_topic = f"/aruco/{marker_name}/cmd_vel"
     
     bridge_node = TimerAction(
         period=2.5,
@@ -129,7 +107,7 @@ def _launch_setup(context, *args, **kwargs):
                 executable="parameter_bridge",
                 name=f"aruco_{marker_name}_bridge",
                 parameters=[
-                    {"config_file": tmp_bridge_file.name},
+                    {"config_file": bridge_config_path},
                     {"use_sim_time": True}
                 ],
 
@@ -139,7 +117,6 @@ def _launch_setup(context, *args, **kwargs):
     )
 
     # Config file path
-    pkg_share = get_package_share_directory('rovo_gz_description')
     config_path = os.path.join(pkg_share, 'config', 'teleop_joy_config.yaml')
 
     # Joy node for controller input

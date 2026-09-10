@@ -1,0 +1,23 @@
+# ros_gz_bridge topic mapping for ArUco marker
+# Maps ROS topics to Gazebo Sim topics for the ArUco bot
+
+# Command velocity - ROS to Gazebo (control the robot)
+- ros_topic_name: "/aruco/aruco_bot/cmd_vel"
+  gz_topic_name: "/aruco_bot/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# Odometry - Gazebo to ROS (report position/velocity)
+- ros_topic_name: "/aruco/aruco_bot/odom"
+  gz_topic_name: "world/empty/model/aruco_bot/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+# Joint state - Gazebo to ROS (report joint states)
+- ros_topic_name: "/aruco/aruco_bot/joint_state"
+  gz_topic_name: "world/empty/model/aruco_bot/joint_state"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
