@@ -28,7 +28,7 @@ xhost +local: >/dev/null 2>&1 || true
 
 # Check if workspace has been built in the container's mounted volume
 cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "
-  if [ ! -d /opt/ros2_ws/build ] || [ ! -d /opt/ros2_ws/install ] || [ ! -d /opt/ros2_ws/log ]; then
+  if [ ! -d /opt/sim/ros2_ws/build ] || [ ! -d /opt/sim/ros2_ws/install ] || [ ! -d /opt/sim/ros2_ws/log ]; then
     echo 'Workspace not built. Running colcon build...'
     exit 1
   fi
@@ -41,6 +41,6 @@ fi
 
 cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "set -e && \
     source /opt/ros/rolling/setup.bash && \
-    source /opt/ros2_ws/install/setup.bash && \
+    source /opt/sim/ros2_ws/install/setup.bash && \
     exec ros2 launch rovo_gz_description sim_bringup.launch.py \
     world:=${WORLD} model:=${MODEL}"

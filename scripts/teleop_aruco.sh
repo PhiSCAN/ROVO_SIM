@@ -18,8 +18,7 @@ if [ -z "$(cd "${PROJECT_DIR}" && docker compose ps -q rovosim)" ]; then
   exit 1
 fi
 
-cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "\
-  source /opt/ros/rolling/setup.bash && \
-  source /opt/ros2_ws/install/setup.bash && \
-  ros2 run joy joy_node __ns:=/aruco_bot __params:=/opt/ros2_ws/src/ROVO_SIM/rovo_fake_pico/config/joystick.yaml & \
-  ros2 run rovo_fake_pico twist_stamped_relay __ns:=/aruco_bot __params:=/opt/ros2_ws/src/ROVO_SIM/rovo_fake_pico/config/twist_relay.yaml"
+cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "set -e && \
+    source /opt/ros/rolling/setup.bash && \
+    source /opt/sim/ros2_ws/install/setup.bash && \
+  ros2 launch rovo_gz_description spawn_aruco.launch.py"

@@ -13,17 +13,20 @@ Usage:
   # Spawn ArUco bot at custom position
   ros2 launch rovo_gz_description spawn_aruco.launch.py x:=2.0 y:=-1.0 marker_name:=my_aruco_bot
 """
+import os
 import re
 import subprocess
 import tempfile
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
+    ExecuteProcess,
     OpaqueFunction,
     TimerAction,
 )
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
 
 
 def _get_world_name():
@@ -61,7 +64,20 @@ def _launch_setup(context, *args, **kwargs):
         world = _get_world_name()
 
     # Always spawn the ArUco bot
-    model_uri = "model://aruco_bot"
+    model_uri = "model://mars_rover"
+
+    # First, remove any existing model with the same name to avoid conflicts
+    # Using DeleteEntity service
+    remove_entity_cmd = ExecuteProcess(
+        cmd=[
+            "ros2", "service", "call",
+            f"/world/{world}/remove",
+            "ros_gz_interfaces/srv/DeleteEntity",
+            f"'{{\"name\": \"{marker_name}\"}}'"
+        ],
+        output="screen",
+        shell=True,
+    )
 
     # Spawn the model using ros_gz_sim create
     spawn_node = Node(
@@ -122,13 +138,17 @@ def _launch_setup(context, *args, **kwargs):
         ]
     )
 
+    # Config file path
+    pkg_share = get_package_share_directory('rovo_gz_description')
+    config_path = os.path.join(pkg_share, 'config', 'teleop_joy_config.yaml')
+
     # Joy node for controller input
     joy_node = Node(
         package="joy",
         executable="joy_node",
         name="joy",
-        parameters=[{"dev": "/dev/input/js0"}],
-        output="log"
+        parameters=[config_path],
+        output="screen"
     )
 
     # Teleop node - publishes to the bot's cmd_vel topic
@@ -137,11 +157,11 @@ def _launch_setup(context, *args, **kwargs):
         executable="teleop_node",
         name="teleop_twist_joy",
         remappings=[("cmd_vel", ros_cmd_vel_topic)],
-        parameters=[{"use_sim_time": True}],
-        output="log"
+        parameters=[{"use_sim_time": True}, config_path],
+        output="screen"
     )
 
-    actions = [spawn_node, bridge_node, joy_node, teleop_node]
+    actions = [remove_entity_cmd, spawn_node, bridge_node, joy_node, teleop_node]
 
     return actions
 
@@ -150,7 +170,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("x", default_value="1.0",
                               description="X position to spawn the model"),
-        DeclareLaunchArgument("y", default_value="0.0",
+        DeclareLaunchArgument("y", default_value="1.0",
                               description="Y position to spawn the model"),
         DeclareLaunchArgument("z", default_value="0.01",
                               description="Z position (height) to spawn the model"),
@@ -158,7 +178,7 @@ def generate_launch_description():
                                description="Roll angle to spawn the model"),
         DeclareLaunchArgument("pitch", default_value="0.0",
                                description="Pitch angle to spawn the model"),
-        DeclareLaunchArgument("yaw", default_value="0.0",
+        DeclareLaunchArgument("yaw", default_value="1.5708",
                               description="Yaw angle to spawn the model"),
         DeclareLaunchArgument("marker_name", default_value="aruco_bot",
                               description="Name of the spawned ArUco bot"),

@@ -28,7 +28,7 @@ fi
 # Note: ros2_ws is mounted from host, so build/install/log will persist on host
 cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "set -e && \
   source /opt/ros/rolling/setup.bash && \
-  cd /opt/ros2_ws && \
+  cd /opt/sim/ros2_ws && \
   rm -rf build install log && \
   rosdep update && \
   rosdep install --from-paths src --ignore-src -r -y && \
