@@ -299,7 +299,7 @@
       </axis>
     </joint>
 
-    <model name="aruco_marker">
+    <!-- <model name="aruco_marker">
       <pose>0 0 0.7 1.5708 0 0</pose>
       <include>
         <uri>model://aruco_box</uri>
@@ -309,11 +309,11 @@
     <joint name="aruco_marker_joint" type="fixed">
       <parent>chassis</parent>
       <child>aruco_marker</child>
-    </joint>
+    </joint> -->
 
-    <plugin filename="libgazebo_ros_diff_drive.so" name="diff_drive_controller">
+    <plugin filename="gz-sim-mecanum-drive-system" name="gz::sim::systems::MecanumDrive">
       <ros>
-        <namespace>/mars_rover</namespace>
+        <namespace>aruco</namespace>
         <remapping>cmd_vel:=cmd_vel</remapping>
       </ros>
       <update_rate>50</update_rate>
@@ -322,13 +322,11 @@
       <front_left_joint>front_left_wheel_joint</front_left_joint>
       <front_right_joint>front_right_wheel_joint</front_right_joint>
       <wheel_separation>0.62206</wheel_separation>
-      <wheel_diameter>0.1641</wheel_diameter>
-      <torque>20</torque>
-      <topic>cmd_vel</topic>
+      <wheel_radius>0.1358</wheel_radius>
+      <topic>aruco_bot/cmd_vel</topic>
       <body_frame>chassis</body_frame>
-      <odometry_frame>odometry</odometry_frame>
-      <odometry_topic>odom</odometry_topic>
-      <enable_odometry>true</enable_odometry>
+      <min_acceleration>-10</min_acceleration>
+      <max_acceleration>10</max_acceleration>
     </plugin>
   </model>
 </sdf>

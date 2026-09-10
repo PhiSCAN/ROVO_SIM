@@ -1,0 +1,37 @@
+# Teleop Twist Joy configuration for ArUco bot
+# Maps left joystick to steering (angular/yaw) and right joystick to throttle (linear x)
+# Assumes standard Xbox/PS4 gamepad layout:
+# - Left stick horizontal (axis 0) -> steering
+# - Right stick vertical (axis 4) -> throttle
+
+joy:
+  ros__parameters:
+    dev: "/dev/input/js0"
+
+teleop_twist_joy:
+  ros__parameters:
+    # Axis mappings
+    axis_linear:
+      x: 3  # Right stick vertical: push forward = forward, pull back = reverse
+    axis_angular:
+      yaw: 0  # Left stick horizontal: left = turn left, right = turn right
+    
+    # Scale factors (adjust as needed)
+    scale_linear: 
+     x: 5.0
+    scale_angular:
+     yaw: 2.0
+    
+    # Optional: Deadman button (prevents accidental movement)
+    # Uncomment and set to your preferred button if desired
+    enable_button: 7  # Right trigger (RT)
+    
+    # Optional: Turbo mode button
+    # Uncomment and set to your preferred button if desired
+    # enable_turbo_button: 5  # Left trigger (LT)
+    # scale_linear_turbo: 2.0
+    # scale_angular_turbo: 1.5
+    
+    # Optional: Invert axes if needed
+    # invert_linear: false
+    # invert_angular: false
