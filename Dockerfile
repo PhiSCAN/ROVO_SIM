@@ -20,15 +20,11 @@ ARG GZ_VERSION=rolling
 FROM osrf/ros:${ROS2_DISTRO}-desktop
 
 # Set environment variables
-ENV ROS_DOMAIN_ID=0 \
-    DEBIAN_FRONTEND=noninteractive
-
-# Create workspace structure
-RUN mkdir -p /opt/ros2_ws/src /opt/ros2_ws/build /opt/ros2_ws/install /opt/ros2_ws/log
-WORKDIR /opt/ros2_ws
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install additional dependencies needed for development
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     python3-colcon-common-extensions \
     python3-pip \
     git \
@@ -53,15 +49,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-rolling-ros-gz-bridge \
     ros-rolling-gz-utils-vendor \
     ros-rolling-gz-math-vendor \
+    ros-rolling-joy \
+    ros-rolling-teleop-twist-joy \
+    ros-rolling-teleop-twist-keyboard \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir --break-system-packages numpy orjson
 
+RUN mkdir -p /opt/sim/ros2_ws/src /opt/sim/ros2_ws/build /opt/sim/ros2_ws/install /opt/sim/ros2_ws/log
+
 # Setup automatic environment sourcing in root user's .bashrc
 # Use single quotes or no quotes for ARG variable substitution to work
 RUN echo source /opt/ros/rolling/setup.bash >> /root/.bashrc && \
-    echo source /opt/ros2_ws/install/setup.bash >> /root/.bashrc
+    echo source /opt/sim/ros2_ws/install/setup.bash >> /root/.bashrc
 
-WORKDIR /opt/ros2_ws
+WORKDIR /opt/sim/ros2_ws
 CMD ["bash"]

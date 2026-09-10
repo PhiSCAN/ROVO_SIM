@@ -13,16 +13,18 @@ services:
     environment:
       - DISPLAY=${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_zenoh_cpp}
+      - GZ_SIM_RESOURCE_PATH=/opt/sim/models
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ./ros2_ws:/opt/ros2_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rwfs
+      - ./ros2_ws:/opt/sim/ros2_ws
+      - ./models:/opt/sim/models
       - ./gz_cache:/root/.gz
     devices:
       - /dev/dri:/dev/dri
       - /dev/bus/usb:/dev/bus/usb
+      - /dev/input:/dev/input
     privileged: true
     ipc: host
     ulimits:
@@ -30,7 +32,5 @@ services:
       stack: -1
     stdin_open: true
     tty: true
-    ports:
-      - "8080:8080"
-    working_dir: /opt/ros2_ws
+    working_dir: /opt/sim/ros2_ws
     network_mode: host
