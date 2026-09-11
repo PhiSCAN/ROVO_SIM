@@ -18,9 +18,9 @@ teleop_twist_joy:
     
     # Scale factors (adjust as needed)
     scale_linear: 
-     x: 5.0
+     x: 1.0
     scale_angular:
-     yaw: 2.0
+     yaw: 1.0
     
     # Optional: Deadman button (prevents accidental movement)
     # Uncomment and set to your preferred button if desired

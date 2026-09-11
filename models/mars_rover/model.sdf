@@ -271,7 +271,7 @@
       <parent>chassis</parent>
       <child>front_left_wheel</child>
       <axis>
-        <xyz>1 0 0</xyz>
+        <xyz>0 0 1</xyz>
       </axis>
     </joint>
 
@@ -279,7 +279,7 @@
       <parent>chassis</parent>
       <child>front_right_wheel</child>
       <axis>
-        <xyz>1 0 0</xyz>
+        <xyz>0 0 1</xyz>
       </axis>
     </joint>
 
@@ -287,7 +287,7 @@
       <parent>chassis</parent>
       <child>rear_left_wheel</child>
       <axis>
-        <xyz>1 0 0</xyz>
+        <xyz>0 0 1</xyz>
       </axis>
     </joint>
 
@@ -295,7 +295,7 @@
       <parent>chassis</parent>
       <child>rear_right_wheel</child>
       <axis>
-        <xyz>1 0 0</xyz>
+        <xyz>0 0 1</xyz>
       </axis>
     </joint>
 
