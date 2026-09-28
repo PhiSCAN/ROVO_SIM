@@ -5,12 +5,6 @@
 
 set -e
 
-# if [ -z "$(docker ps -q -f name=^/rovsim$)" ]; then
-#   echo "ERROR: container 'initialize_simulation' not running."
-#   echo "Start it first: ./initialize_simulation.sh"
-#   exit 1
-# fi
-
 exec docker compose exec -it rovosim bash -c "\
   source /opt/ros/rolling/setup.bash && \
   source /opt/sim/ros2_ws/install/setup.bash && \

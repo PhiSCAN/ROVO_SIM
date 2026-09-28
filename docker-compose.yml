@@ -8,12 +8,12 @@ services:
     image: rovosim:latest
     container_name: rovosim
     runtime: nvidia
+    env_file: .env
     environment:
       - DISPLAY=${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_zenoh_cpp}
-      - GZ_SIM_RESOURCE_PATH=/opt/sim/models
+      - GZ_SIM_RESOURCE_PATH=/opt/sim/models:/opt/sim/ros2_ws/install/veera_simulator/share:/opt/sim/ros2_ws/install/rovo_gz_description/share
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rwfs
       - ./ros2_ws:/opt/sim/ros2_ws
@@ -24,10 +24,7 @@ services:
       - /dev/bus/usb:/dev/bus/usb
       - /dev/input:/dev/input
     privileged: true
-    ipc: host
-    ulimits:
-      memlock: -1
-      stack: -1
+    # ipc: host
     stdin_open: true
     tty: true
     working_dir: /opt/sim/ros2_ws

@@ -52,7 +52,7 @@ RUN apt-get update && \
     ros-rolling-joy \
     ros-rolling-teleop-twist-joy \
     ros-rolling-teleop-twist-keyboard \
-    && rm -rf /var/lib/apt/lists/*
+    ros-rolling-rmw-cyclonedds-cpp
 
 # Install Python dependencies
 RUN pip3 install --no-cache-dir --break-system-packages numpy orjson

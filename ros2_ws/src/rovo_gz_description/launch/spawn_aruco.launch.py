@@ -145,7 +145,7 @@ def _launch_setup(context, *args, **kwargs):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument("x", default_value="2.5",
+        DeclareLaunchArgument("x", default_value="2.3",
                               description="X position to spawn the model"),
         DeclareLaunchArgument("y", default_value="0.0",
                               description="Y position to spawn the model"),

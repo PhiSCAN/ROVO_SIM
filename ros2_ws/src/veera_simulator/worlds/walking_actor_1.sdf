@@ -1,0 +1,33 @@
+<?xml version='1.0' encoding='ASCII'?>
+<!-- Animated walking actor for the warehouse world.
+     North nav-challenge-area loop. Spawned by rovo_clearpath.launch.py when actors:=true.
+     Ref: https://gazebosim.org/docs/latest/actors/ -->
+<sdf version='1.7'>
+  <actor name='actor_walker_1'>
+    <skin>
+      <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename>
+      <scale>1.0</scale>
+    </skin>
+    <animation name='walk'>
+      <filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename>
+      <scale>1.0</scale>
+      <interpolate_x>true</interpolate_x>
+    </animation>
+    <script>
+      <loop>true</loop>
+      <delay_start>0.0</delay_start>
+      <auto_start>true</auto_start>
+      <trajectory id='0' type='walk'>
+        <waypoint><time>0.0</time><pose>-8 11 1.0 0 0 1.57</pose></waypoint>
+        <waypoint><time>6.0</time><pose>-8 17 1.0 0 0 1.57</pose></waypoint>
+        <waypoint><time>7.0</time><pose>-8 17 1.0 0 0 0</pose></waypoint>
+        <waypoint><time>12.0</time><pose>-3 17 1.0 0 0 0</pose></waypoint>
+        <waypoint><time>13.0</time><pose>-3 17 1.0 0 0 -1.57</pose></waypoint>
+        <waypoint><time>19.0</time><pose>-3 11 1.0 0 0 -1.57</pose></waypoint>
+        <waypoint><time>20.0</time><pose>-3 11 1.0 0 0 3.14</pose></waypoint>
+        <waypoint><time>25.0</time><pose>-8 11 1.0 0 0 3.14</pose></waypoint>
+        <waypoint><time>26.0</time><pose>-8 11 1.0 0 0 1.57</pose></waypoint>
+      </trajectory>
+    </script>
+  </actor>
+</sdf>
