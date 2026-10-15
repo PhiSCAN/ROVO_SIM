@@ -1,0 +1,32 @@
+{
+  // Sets this instance explicitly as a router
+  mode: "router",
+
+  // Where the router listens for incoming ROS 2 node connections
+  listen: {
+    endpoints: [
+      "tcp/0.0.0.0:7447",
+      "udp/0.0.0.0:7447"
+    ]
+  },
+
+  // Increase buffer sizes to prevent "Unable to push non droppable network message"
+  // These values prevent buffer overflow when ROS 2 nodes send high-volume traffic
+  transport: {
+    link: {
+      rx: {
+        buffer_size: 2147483647,
+        max_message_size: 1073741824
+      },
+      tx: {
+        batch_size: 2147483647
+      }
+    }
+  },
+
+  // ROS 2 (v1.0+) plugins are configured here if you are bridging architectures,
+  // though if you are using 'rmw_zenoh', they connect natively as clients.
+  plugins: {
+    // optional plugin configurations go here
+  }
+}

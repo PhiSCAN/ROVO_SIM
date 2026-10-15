@@ -59,6 +59,7 @@ RUN pip3 install --no-cache-dir --break-system-packages numpy orjson
 
 RUN mkdir -p /opt/sim/ros2_ws/src /opt/sim/ros2_ws/build /opt/sim/ros2_ws/install /opt/sim/ros2_ws/log
 
+RUN apt update && apt upgrade -y --fix-broken
 # Setup automatic environment sourcing in root user's .bashrc
 # Use single quotes or no quotes for ARG variable substitution to work
 RUN echo source /opt/ros/rolling/setup.bash >> /root/.bashrc && \
