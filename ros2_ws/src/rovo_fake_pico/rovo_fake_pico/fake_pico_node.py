@@ -15,7 +15,7 @@ XY mode: FWD/TURN are scaled integers in [-800, 800] / [-500, 500]
 matching gcs_cmd_vel.py's encoding; converted back to Twist by undoing
 the same scaling.
 
-Output topic: /cmd_vel_gcs (geometry_msgs/Twist) — matches the URDF
+Output topic: /cmd_vel_gcs (geometry_msgs/TwistStamped) — matches the URDF
 DiffDrive / TrackedVehicle plugin <topic> in rovo_gz_description.
 """
 
