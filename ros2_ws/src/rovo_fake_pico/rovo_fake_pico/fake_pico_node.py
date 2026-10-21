@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """rovo_fake_pico: UDP -> Twist bridge emulating the on-robot Pico controller.
 
-Listens on UDP for the ASCII packet format produced by gcs_cmd_vel.py:
+Listens on a single UDP port (default 8888) for two ASCII packet formats:
+
+GCS packets (gcs_cmd_vel.py):
 
     LC=<n> FWD=<i> TURN=<i> GEAR=<i> AUTO=1 ESTOP=<0|1> MODE=<VEL|XY>
     LRPM=<i> RRPM=<i> G22=0 G26=0 G27=0 CC=0
+
+Flutter android teleop packets (picoStringFormat: FWD/TURN are
+velocity*1000 in [-1000, 1000]):
+
+    LC=<n> FWD=<f> TURN=<f> ESTOP=<0|1>
+
+Packets are dispatched by content: those carrying MODE or LRPM/RRPM go
+to the GCS handler, everything else to the android handler.
 
 VEL mode: LRPM / RRPM are wheel target RPMs (after gearbox). They are
 converted back to wheel linear velocities via the drive diameter and
@@ -30,8 +40,7 @@ from geometry_msgs.msg import Twist, TwistStamped
 from std_msgs.msg import String
 
 
-DEFAULT_PORT = 8887
-DEFAULT_ANDROID_PORT = 8888
+DEFAULT_PORT = 8888
 DEFAULT_DRIVE_DIAMETER_M = 0.35
 DEFAULT_GEARBOX_RATIO = 16.0
 DEFAULT_WHEEL_BASE_M = 1.05
@@ -57,7 +66,6 @@ class FakePicoNode(Node):
 
         self.declare_parameter("listen_ip", "0.0.0.0")
         self.declare_parameter("listen_port", DEFAULT_PORT)
-        self.declare_parameter("android_port", DEFAULT_ANDROID_PORT)
         self.declare_parameter("drive_diameter_m", DEFAULT_DRIVE_DIAMETER_M)
         self.declare_parameter("gearbox_ratio", DEFAULT_GEARBOX_RATIO)
         self.declare_parameter("wheel_base_m", DEFAULT_WHEEL_BASE_M)
@@ -72,7 +80,6 @@ class FakePicoNode(Node):
 
         self.listen_ip = self.get_parameter("listen_ip").value
         self.listen_port = int(self.get_parameter("listen_port").value)
-        self.android_port = int(self.get_parameter("android_port").value)
         self.drive_diameter_m = float(self.get_parameter("drive_diameter_m").value)
         self.gearbox_ratio = float(self.get_parameter("gearbox_ratio").value)
         self.wheel_base_m = float(self.get_parameter("wheel_base_m").value)
@@ -107,21 +114,13 @@ class FakePicoNode(Node):
         self._rx_thread = threading.Thread(target=self._rx_loop, daemon=True)
         self._rx_thread.start()
 
-        self._android_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._android_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._android_sock.bind((self.listen_ip, self.android_port))
-        self._android_sock.settimeout(0.2)
-
-        self._android_rx_thread = threading.Thread(target=self._android_rx_loop, daemon=True)
-        self._android_rx_thread.start()
-
         self.create_timer(1.0 / self.publish_rate_hz, self._publish_timer)
         self.create_timer(1.0 / self.status_rate_hz, self._status_timer)
         self.create_timer(2.0, self._diag_timer)
 
         self.get_logger().info(
-            f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} (gcs) "
-            f"and udp://{self.listen_ip}:{self.android_port} (android teleop) "
+            f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} "
+            f"(gcs + android teleop) "
             f"-> publishing Twist on {self.output_topic} @ {self.publish_rate_hz} Hz "
             f"(rpm_multiplier={self.rpm_multiplier})"
         )
@@ -134,17 +133,15 @@ class FakePicoNode(Node):
                 continue
             except OSError:
                 break
-            self._handle_packet(data.decode("utf-8", errors="replace"))
+            self._dispatch_packet(data.decode("utf-8", errors="replace"))
 
-    def _android_rx_loop(self) -> None:
-        while not self._stop.is_set():
-            try:
-                data, _ = self._android_sock.recvfrom(RECV_BUFSIZE)
-            except socket.timeout:
-                continue
-            except OSError:
-                break
-            self._handle_android_packet(data.decode("utf-8", errors="replace"))
+    def _dispatch_packet(self, payload: str) -> None:
+        """Route by content: GCS packets carry MODE or LRPM/RRPM, Flutter ones don't."""
+        fields = _parse_packet(payload)
+        if "MODE" in fields or "LRPM" in fields or "RRPM" in fields:
+            self._handle_packet(payload)
+        else:
+            self._handle_android_packet(payload)
 
     def _handle_android_packet(self, payload: str) -> None:
         """Parse Flutter picoStringFormat: FWD/TURN in [-1000,1000] (float*1000)."""
@@ -284,11 +281,10 @@ class FakePicoNode(Node):
 
     def shutdown(self) -> None:
         self._stop.set()
-        for sock in (self._sock, self._android_sock):
-            try:
-                sock.close()
-            except OSError:
-                pass
+        try:
+            self._sock.close()
+        except OSError:
+            pass
 
 
 def main(args=None):

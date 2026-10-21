@@ -39,6 +39,16 @@ fi
 echo "Starting rovosim container..."
 "${SCRIPT_DIR}/run.sh"
 
+# Ctrl+C interrupts the foreground ros2 launch exec, but the containers were
+# started detached - bring them down on SIGINT/SIGTERM so nothing keeps running.
+cleanup() {
+  echo ""
+  echo "[initialize_simulation] interrupted - stopping containers..."
+  cd "${PROJECT_DIR}" && docker compose down
+  exit 130
+}
+trap cleanup INT TERM
+
 echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
 
 xhost +local: >/dev/null 2>&1 || true

@@ -207,8 +207,9 @@ def generate_launch_description():
             DeclareLaunchArgument("yaw", default_value="0.0"),
             # Fake PICO
             DeclareLaunchArgument(
-                "fake_pico_port", default_value="8887",
-                description="Port for rovo_fake_pico to listen on"
+                "fake_pico_port", default_value="8888",
+                description="UDP port for rovo_fake_pico to listen on "
+                "(both GCS and android teleop packets)"
             ),
             # Optional: Enable ROS-GZ bridge
             DeclareLaunchArgument(
