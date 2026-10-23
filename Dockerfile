@@ -1,5 +1,10 @@
 # ROS 2 Rolling + Gazebo Sim Dockerfile for Rovo Simulation
 # 
+# Uses ROVO-base-image as the base which contains:
+# - ROS 2 Rolling desktop
+# - Navigation2 stack
+# - All overlay packages (sensor drivers, Nav2 tools)
+#
 # All ROS packages are in the host's ros2_ws/src folder and mounted into the container.
 # No packages are built in the Dockerfile - they are built on the host or in the container
 # via the mounted workspace.
@@ -17,12 +22,12 @@ ARG GZ_VERSION=rolling
 # =============================================================================
 # Single stage: Base image with ROS 2 and Gazebo Sim + development tools
 # =============================================================================
-FROM osrf/ros:${ROS2_DISTRO}-desktop
+FROM rovo-base-image:latest
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install additional dependencies needed for development
+# Install Gazebo Sim specific dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3-colcon-common-extensions \
@@ -60,9 +65,12 @@ RUN pip3 install --no-cache-dir --break-system-packages numpy orjson
 RUN mkdir -p /opt/sim/ros2_ws/src /opt/sim/ros2_ws/build /opt/sim/ros2_ws/install /opt/sim/ros2_ws/log
 
 RUN apt update && apt upgrade -y --fix-broken
+
 # Setup automatic environment sourcing in root user's .bashrc
-# Use single quotes or no quotes for ARG variable substitution to work
+# The base image already sources ROS 2, so we just need to source the sim workspace
 RUN echo source /opt/ros/rolling/setup.bash >> /root/.bashrc && \
+    echo source /opt/nav2_ws/install/setup.bash >> /root/.bashrc && \
+    echo source /opt/overlay_ws/install/setup.bash >> /root/.bashrc && \
     echo source /opt/sim/ros2_ws/install/setup.bash >> /root/.bashrc
 
 WORKDIR /opt/sim/ros2_ws
