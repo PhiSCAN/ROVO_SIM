@@ -11,4 +11,4 @@ xhost +local: >/dev/null 2>&1 || true
 # Gazebo Fuel model cache vendored in-repo (gz_cache/) and mounted via docker-compose
 mkdir -p "${PROJECT_DIR}/gz_cache"
 
-cd "${PROJECT_DIR}" && docker compose up -d
+cd "${PROJECT_DIR}" && USE_SIM_TIME=true docker compose up -d

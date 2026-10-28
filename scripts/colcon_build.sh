@@ -26,7 +26,7 @@ fi
 
 # Clean build artifacts inside the container
 # Note: ros2_ws is mounted from host, so build/install/log will persist on host
-cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "set -e && \
+cd "${PROJECT_DIR}" && USE_SIM_TIME=true docker compose exec rovosim bash -c "set -e && \
   source /opt/ros/rolling/setup.bash && \
   cd /opt/sim/ros2_ws && \
   rm -rf build install log && \

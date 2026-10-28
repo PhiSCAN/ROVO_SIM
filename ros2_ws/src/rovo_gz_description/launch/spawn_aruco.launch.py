@@ -57,6 +57,7 @@ def _launch_setup(context, *args, **kwargs):
     yaw = LaunchConfiguration("yaw").perform(context)
     marker_name = LaunchConfiguration("marker_name").perform(context)
     world = LaunchConfiguration("world").perform(context)
+    use_sim_time = LaunchConfiguration("use_sim_time").perform(context).lower() in ("true", "1")
     
     # Auto-detect world name from running simulation if not specified
     if world == "empty":
@@ -108,7 +109,7 @@ def _launch_setup(context, *args, **kwargs):
                 name=f"aruco_{marker_name}_bridge",
                 parameters=[
                     {"config_file": bridge_config_path},
-                    {"use_sim_time": True}
+                    {"use_sim_time": use_sim_time}
                 ],
 
                 output="log"
@@ -134,7 +135,7 @@ def _launch_setup(context, *args, **kwargs):
         executable="teleop_node",
         name="teleop_twist_joy",
         remappings=[("cmd_vel", ros_cmd_vel_topic)],
-        parameters=[{"use_sim_time": True}, config_path],
+        parameters=[{"use_sim_time": use_sim_time}, config_path],
         output="screen"
     )
 
@@ -161,5 +162,9 @@ def generate_launch_description():
                               description="Name of the spawned ArUco bot"),
         DeclareLaunchArgument("world", default_value="empty",
                               description="Name of the Gazebo world (for topic namespacing)"),
+        DeclareLaunchArgument(
+            "use_sim_time", default_value=os.environ.get("USE_SIM_TIME", "true").lower(),
+            description="Use ROS simulation clock from /clock",
+        ),
         OpaqueFunction(function=_launch_setup),
     ])

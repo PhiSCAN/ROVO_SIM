@@ -14,6 +14,7 @@ def _launch_setup(context, *args, **kwargs):
     pkg_share = get_package_share_directory(pkg)
 
     world_arg = LaunchConfiguration("world").perform(context)
+    use_sim_time = LaunchConfiguration("use_sim_time").perform(context).lower() in ("true", "1")
     world_path = os.path.join(pkg_share, "worlds", world_arg)
     if not os.path.isfile(world_path):
         raise RuntimeError(f"World file not found: {world_path}")
@@ -44,7 +45,7 @@ def _launch_setup(context, *args, **kwargs):
     rsp = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
-        parameters=[{"robot_description": robot_desc, "use_sim_time": True}],
+        parameters=[{"robot_description": robot_desc, "use_sim_time": use_sim_time}],
         output="screen",
     )
 
@@ -63,7 +64,7 @@ def _launch_setup(context, *args, **kwargs):
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
-        parameters=[{"config_file": bridge_yaml, "use_sim_time": True}],
+        parameters=[{"config_file": bridge_yaml, "use_sim_time": use_sim_time}],
         output="screen",
     )
 
@@ -71,7 +72,7 @@ def _launch_setup(context, *args, **kwargs):
         package="rovo_gz_description",
         executable="depth_float32_to_uint16.py",
         name="depth_float32_to_uint16",
-        parameters=[{"use_sim_time": True}],
+        parameters=[{"use_sim_time": use_sim_time}],
         output="log",
     )
 
@@ -81,7 +82,7 @@ def _launch_setup(context, *args, **kwargs):
             package="rviz2",
             executable="rviz2",
             arguments=["-d", rviz_config],
-            parameters=[{"use_sim_time": True}],
+            parameters=[{"use_sim_time": use_sim_time}],
             output="screen",
         )],
     )
@@ -93,5 +94,9 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("world", default_value="empty.sdf",
                               description="World .sdf filename in worlds/"),
+        DeclareLaunchArgument(
+            "use_sim_time", default_value=os.environ.get("USE_SIM_TIME", "true").lower(),
+            description="Use ROS simulation clock from /clock",
+        ),
         OpaqueFunction(function=_launch_setup),
     ])

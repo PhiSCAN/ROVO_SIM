@@ -5,7 +5,7 @@
 
 set -e
 
-exec docker compose exec -it rovosim bash -c "\
+exec env USE_SIM_TIME=true docker compose exec -it rovosim bash -c "\
   source /opt/ros/rolling/setup.bash && \
   source /opt/sim/ros2_ws/install/setup.bash && \
   ros2 run teleop_twist_keyboard teleop_twist_keyboard \

@@ -18,6 +18,7 @@ services:
       - __GLX_VENDOR_LIBRARY_NAME=nvidia
       - GZ_SIM_RESOURCE_PATH=/opt/sim/models:/opt/sim/ros2_ws/install/veera_simulator/share:/opt/sim/ros2_ws/install/rovo_gz_description/share
       - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      - USE_SIM_TIME=true
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rwfs
       - ./ros2_ws:/opt/sim/ros2_ws
@@ -37,44 +38,46 @@ services:
     working_dir: /opt/sim/ros2_ws
     network_mode: host
 
-  rviz2:
-    build:
-      context: .
-      args:
-        ROS2_DISTRO: ${ROS2_DISTRO:-rolling}
-        GZ_VERSION: ${GZ_VERSION:-rolling}
-    image: rovosim:latest
-    container_name: rviz2
-    runtime: nvidia
-    env_file: .env
-    environment:
-      - DISPLAY=${DISPLAY}
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/nvidia:/usr/lib/x86_64-linux-gnu
-      - __NV_PRIME_RENDER_OFFLOAD=1
-      - __GLX_VENDOR_LIBRARY_NAME=nvidia
-      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rwfs
-      - ./ros2_ws:/opt/sim/ros2_ws
-    devices:
-      - /dev/dri:/dev/dri
-    ipc: host
-    stdin_open: true
-    tty: true
-    working_dir: /opt/sim/ros2_ws
-    network_mode: host
-    command: >
-      bash -c "source /opt/ros/rolling/setup.bash &&
-               source /opt/sim/ros2_ws/install/setup.bash &&
-               exec rviz2"
+  # rviz2:
+  #   build:
+  #     context: .
+  #     args:
+  #       ROS2_DISTRO: ${ROS2_DISTRO:-rolling}
+  #       GZ_VERSION: ${GZ_VERSION:-rolling}
+  #   image: rovosim:latest
+  #   container_name: rviz2
+  #   runtime: nvidia
+  #   env_file: .env
+  #   environment:
+  #     - DISPLAY=${DISPLAY}
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #     - NVIDIA_DRIVER_CAPABILITIES=all
+  #     - LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/nvidia:/usr/lib/x86_64-linux-gnu
+  #     - __NV_PRIME_RENDER_OFFLOAD=1
+  #     - __GLX_VENDOR_LIBRARY_NAME=nvidia
+  #     - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+  #   volumes:
+  #     - /tmp/.X11-unix:/tmp/.X11-unix:rwfs
+  #     - ./ros2_ws:/opt/sim/ros2_ws
+  #   devices:
+  #     - /dev/dri:/dev/dri
+  #   ipc: host
+  #   stdin_open: true
+  #   tty: true
+  #   working_dir: /opt/sim/ros2_ws
+  #   network_mode: host
+  #   command: >
+  #     bash -c "source /opt/ros/rolling/setup.bash &&
+  #              source /opt/sim/ros2_ws/install/setup.bash &&
+  #              exec rviz2"
 
   # Zenoh Router service for ROS 2 communication.
   # rmw_zenoh_cpp nodes connect to it as clients; peers discover each other
   # through the router.
   zenoh-router:
-    image: eclipse/zenoh:1.0.0
+    # Keep the router aligned with Rolling's rmw_zenoh_cpp 0.14.0,
+    # which vendors Zenoh 1.10.1.
+    image: eclipse/zenoh:1.10.1
     container_name: sim-zenoh-router
     network_mode: host
     restart: unless-stopped

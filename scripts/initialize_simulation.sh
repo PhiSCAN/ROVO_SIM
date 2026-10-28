@@ -55,7 +55,7 @@ xhost +local: >/dev/null 2>&1 || true
 
 # Check if workspace has been built in the container's mounted volume
 # (if ! ... guard keeps `set -e` from exiting before the rebuild branch)
-if ! cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "
+  if ! cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "
   if [ ! -d /opt/sim/ros2_ws/build ] || [ ! -d /opt/sim/ros2_ws/install ] || [ ! -d /opt/sim/ros2_ws/log ]; then
     echo 'Workspace not built. Running colcon build...'
     exit 1
@@ -65,8 +65,9 @@ if ! cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "
   "${SCRIPT_DIR}/colcon_build.sh"
 fi
 
-cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "set -e && \
+cd "${PROJECT_DIR}" && USE_SIM_TIME=true docker compose exec rovosim bash -c "set -e && \
     source /opt/ros/rolling/setup.bash && \
     source /opt/sim/ros2_ws/install/setup.bash && \
     exec ros2 launch veera_simulator veera_sim.launch.py \
-    world:=${WORLD} model:=${MODEL} actors:=true"
+    world:=${WORLD} model:=${MODEL} actors:=false \
+    use_sim_time:=${USE_SIM_TIME:-true}"

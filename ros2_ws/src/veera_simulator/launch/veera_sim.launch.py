@@ -43,6 +43,7 @@ def _launch_setup(context, *args, **kwargs):
     # Get launch configurations
     world_name = LaunchConfiguration("world").perform(context)
     model_name = LaunchConfiguration("model").perform(context)
+    use_sim_time = LaunchConfiguration("use_sim_time").perform(context).lower() in ("true", "1")
     use_bridge = LaunchConfiguration("use_bridge").perform(context) == "true"
     use_actors = LaunchConfiguration("actors").perform(context) == "true"
     fake_pico_port = LaunchConfiguration("fake_pico_port").perform(context)
@@ -61,7 +62,7 @@ def _launch_setup(context, *args, **kwargs):
         "robot_description": ParameterValue(
             Command(["xacro ", model_path]), value_type=str
         ),
-        "use_sim_time": True,
+        "use_sim_time": use_sim_time,
     }
 
     # Apply per-world spawn defaults
@@ -134,6 +135,7 @@ def _launch_setup(context, *args, **kwargs):
             launch_arguments={
                 "listen_port": fake_pico_port,
                 "output_topic": "/cmd_vel_gcs",
+                "use_sim_time": str(use_sim_time).lower(),
             }.items(),
         )]
     except Exception as e:
@@ -174,7 +176,7 @@ def _launch_setup(context, *args, **kwargs):
             name="ros_gz_bridge",
             parameters=[
                 {"config_file": bridge_yaml},
-                {"use_sim_time": True},
+                {"use_sim_time": use_sim_time},
             ],
             output="screen",
         )
@@ -199,6 +201,12 @@ def generate_launch_description():
                 "model",
                 default_value="tracked",
                 description="Robot variant: tracked | diff_drive | default"
+            ),
+            DeclareLaunchArgument(
+                "use_sim_time",
+                default_value=os.environ.get("USE_SIM_TIME", "true").lower(),
+                choices=["true", "false", "1", "0"],
+                description="Use ROS simulation clock from /clock",
             ),
             # Spawn pose
             DeclareLaunchArgument("x", default_value="0.0"),

@@ -85,7 +85,7 @@ def _build_bridge_yaml(world_name: str) -> str:
   direction: GZ_TO_ROS
 
 # === Velodyne VLP-16 ===
-- ros_topic_name: "/velodyne_points"
+- ros_topic_name: "/velodyne_points_raw"
   gz_topic_name: "velodyne_points/points"
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "gz.msgs.PointCloudPacked"
@@ -210,7 +210,15 @@ def _launch_setup(context, *args, **kwargs):
         package="rovo_gz_description",
         executable="depth_float32_to_uint16.py",
         name="depth_float32_to_uint16",
-        parameters=[{"use_sim_time": True}],
+        parameters=[{"use_sim_time": use_sim_time.lower() in ("true", "1")}],
+        output="log",
+    )
+
+    velodyne_time_adapter = Node(
+        package="rovo_gz_description",
+        executable="velodyne_time_adapter.py",
+        name="velodyne_time_adapter",
+        parameters=[{"use_sim_time": use_sim_time.lower() in ("true", "1")}],
         output="log",
     )
 
@@ -230,7 +238,8 @@ def _launch_setup(context, *args, **kwargs):
         ],
     )
 
-    return [set_gz_path, rsp, spawn, bridge, depth_converter, zero_cmd]
+    return [set_gz_path, rsp, spawn, bridge, depth_converter,
+            velodyne_time_adapter, zero_cmd]
 
 
 def generate_launch_description():
@@ -244,7 +253,9 @@ def generate_launch_description():
             "world", default_value="empty",
             description="Running world name (used in gz joint_state topic)."
         ),
-        DeclareLaunchArgument("use_sim_time", default_value="true"),
+        DeclareLaunchArgument(
+            "use_sim_time", default_value=os.environ.get("USE_SIM_TIME", "true").lower()
+        ),
         DeclareLaunchArgument(
             "model", default_value="tracked",
             description="Robot variant: 'tracked' (TrackedVehicle plugin) | "

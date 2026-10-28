@@ -153,6 +153,7 @@ def _resolve_clearpath_world(context):
                     "yaw": LaunchConfiguration("yaw"),
                     "world": world,
                     "model": LaunchConfiguration("model"),
+                    "use_sim_time": LaunchConfiguration("use_sim_time"),
                 }.items(),
             ),
         ],
@@ -187,7 +188,10 @@ def _resolve_clearpath_world(context):
             package="rviz2",
             executable="rviz2",
             arguments=["-d", rviz_config],
-            parameters=[{"use_sim_time": True}],
+            parameters=[{
+                "use_sim_time": LaunchConfiguration("use_sim_time").perform(context).lower()
+                in ("true", "1")
+            }],
             output="screen",
             condition=IfCondition(LaunchConfiguration("launch_rviz")),
         )],
@@ -219,6 +223,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "model", default_value="tracked",
             description="Robot variant: tracked | diff_drive | default"
+        ),
+        DeclareLaunchArgument(
+            "use_sim_time", default_value=os.environ.get("USE_SIM_TIME", "true").lower(),
+            description="Use ROS simulation clock from /clock",
         ),
         DeclareLaunchArgument(
             "launch_rviz", default_value="false",

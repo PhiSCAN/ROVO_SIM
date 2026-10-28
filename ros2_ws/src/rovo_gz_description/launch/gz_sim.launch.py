@@ -18,6 +18,7 @@ from launch_ros.substitutions import FindPackageShare
 def _launch_setup(context, *args, **kwargs):
     pkg = "rovo_gz_description"
     pkg_share = get_package_share_directory(pkg)
+    use_sim_time = os.environ.get("USE_SIM_TIME", "true").lower() in ("true", "1")
 
     # ── World resolution ──────────────────────────────────────────────────────
     world_arg = LaunchConfiguration("world").perform(context)
@@ -46,7 +47,7 @@ def _launch_setup(context, *args, **kwargs):
         "robot_description": ParameterValue(
             Command(["xacro ", xacro_path]), value_type=str
         ),
-        "use_sim_time": True,
+        "use_sim_time": use_sim_time,
     }
 
     # ── Bridge config: inject correct world name for joint_state topic ─────────
@@ -104,7 +105,7 @@ def _launch_setup(context, *args, **kwargs):
     bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
-        parameters=[{"config_file": bridge_yaml, "use_sim_time": True}],
+        parameters=[{"config_file": bridge_yaml, "use_sim_time": use_sim_time}],
         output="screen",
     )
 
@@ -117,7 +118,7 @@ def _launch_setup(context, *args, **kwargs):
             package="ros_gz_bridge",
             executable="parameter_bridge",
             name="camera_bridge",
-            parameters=[{"config_file": camera_bridge_yaml, "use_sim_time": True}],
+            parameters=[{"config_file": camera_bridge_yaml, "use_sim_time": use_sim_time}],
             output="screen",
         )],
     )
@@ -138,7 +139,15 @@ def _launch_setup(context, *args, **kwargs):
         package="rovo_gz_description",
         executable="depth_float32_to_uint16.py",
         name="depth_float32_to_uint16",
-        parameters=[{"use_sim_time": True}],
+        parameters=[{"use_sim_time": use_sim_time}],
+        output="log",
+    )
+
+    velodyne_time_adapter = Node(
+        package="rovo_gz_description",
+        executable="velodyne_time_adapter.py",
+        name="velodyne_time_adapter",
+        parameters=[{"use_sim_time": use_sim_time}],
         output="log",
     )
 
@@ -149,13 +158,14 @@ def _launch_setup(context, *args, **kwargs):
             package="rviz2",
             executable="rviz2",
             arguments=["-d", rviz_config],
-            parameters=[{"use_sim_time": True}],
+            parameters=[{"use_sim_time": use_sim_time}],
             output="screen",
             condition=IfCondition(LaunchConfiguration("launch_rviz")),
         )],
     )
 
-    return [set_gz_path, gz_sim, rsp, spawn, bridge, camera_bridge, zero_cmd, depth_converter, rviz]
+    return [set_gz_path, gz_sim, rsp, spawn, bridge, camera_bridge, zero_cmd,
+            depth_converter, velodyne_time_adapter, rviz]
 
 
 def generate_launch_description():

@@ -12,6 +12,7 @@ install(
   PROGRAMS 
     scripts/depth_float32_to_uint16.py
     scripts/aruco_bot_movement.py
+    scripts/velodyne_time_adapter.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

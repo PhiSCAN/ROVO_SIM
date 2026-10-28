@@ -29,7 +29,7 @@
   gz_type_name: "gz.msgs.Clock"
   direction: GZ_TO_ROS
 
-- ros_topic_name: "/velodyne_points"
+- ros_topic_name: "/velodyne_points_raw"
   gz_topic_name: "/velodyne_points/points"
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "gz.msgs.PointCloudPacked"

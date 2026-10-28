@@ -9,4 +9,4 @@ if [ -z "$(cd "${PROJECT_DIR}" && docker compose ps -q rovosim)" ]; then
   "${SCRIPT_DIR}/run.sh"
 fi
 
-cd "${PROJECT_DIR}" && docker compose exec rovosim bash
+cd "${PROJECT_DIR}" && USE_SIM_TIME=true docker compose exec rovosim bash

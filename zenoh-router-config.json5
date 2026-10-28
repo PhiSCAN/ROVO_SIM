@@ -2,6 +2,10 @@
   // Sets this instance explicitly as a router
   mode: "router",
 
+  // Allow ROS service queries to survive slow startup/discovery. Without an
+  // explicit value, lifecycle transition queries were expiring after 10s.
+  queries_default_timeout: 600000,
+
   // Where the router listens for incoming ROS 2 node connections
   listen: {
     endpoints: [
