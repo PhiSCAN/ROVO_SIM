@@ -4,7 +4,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 
 # Stop any existing containers
-cd "${PROJECT_DIR}" && docker compose down 2>/dev/null || true
+cd "${PROJECT_DIR}" && docker compose down --timeout 0 2>/dev/null || true
 
 xhost +local: >/dev/null 2>&1 || true
 

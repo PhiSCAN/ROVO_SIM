@@ -16,7 +16,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
-
 WORLD="${1:-empty}"
 MODEL="${2:-${MODEL:-tracked}}"
 
@@ -33,21 +32,30 @@ fi
 # Stop running container if it exists, then start a fresh one
 if [ -n "$(cd "${PROJECT_DIR}" && docker compose ps -q rovosim)" ]; then
   echo "Stopping existing rovosim container..."
-  cd "${PROJECT_DIR}" && docker compose down
+  cd "${PROJECT_DIR}" && docker compose down --timeout 0
 fi
+
+sim_launch_pid=""
+cleanup() {
+  status="${1:-$?}"
+  trap - EXIT INT TERM
+  echo "[initialize_simulation] stopping simulation stacks..."
+  if [ -n "${sim_launch_pid}" ]; then
+    kill -TERM "${sim_launch_pid}" 2>/dev/null || true
+  fi
+  (cd "${PROJECT_DIR}" && docker compose down --remove-orphans --timeout 0) || true
+  exit "${status}"
+}
+on_exit() {
+  status=$?
+  cleanup "${status}"
+}
+trap on_exit EXIT
+trap 'cleanup 130' INT
+trap 'cleanup 143' TERM
 
 echo "Starting rovosim container..."
 "${SCRIPT_DIR}/run.sh"
-
-# Ctrl+C interrupts the foreground ros2 launch exec, but the containers were
-# started detached - bring them down on SIGINT/SIGTERM so nothing keeps running.
-cleanup() {
-  echo ""
-  echo "[initialize_simulation] interrupted - stopping containers..."
-  cd "${PROJECT_DIR}" && docker compose down
-  exit 130
-}
-trap cleanup INT TERM
 
 echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
 
@@ -65,9 +73,53 @@ xhost +local: >/dev/null 2>&1 || true
   "${SCRIPT_DIR}/colcon_build.sh"
 fi
 
-cd "${PROJECT_DIR}" && USE_SIM_TIME=true docker compose exec rovosim bash -c "set -e && \
+cd "${PROJECT_DIR}" && USE_SIM_TIME=true docker compose exec -T rovosim bash -c "set -e && \
     source /opt/ros/rolling/setup.bash && \
     source /opt/sim/ros2_ws/install/setup.bash && \
     exec ros2 launch veera_simulator veera_sim.launch.py \
     world:=${WORLD} model:=${MODEL} actors:=false \
-    use_sim_time:=${USE_SIM_TIME:-true}"
+    use_sim_time:=${USE_SIM_TIME:-true}" &
+sim_launch_pid=$!
+
+echo "[initialize_simulation] waiting for simulator Zenoh router on port 7447..."
+router_ready=0
+for _ in $(seq 1 90); do
+  if timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/7447' 2>/dev/null; then
+    router_ready=1
+    break
+  fi
+  if ! kill -0 "${sim_launch_pid}" 2>/dev/null; then
+    echo "ERROR: simulator launch exited before Zenoh became available." >&2
+    wait "${sim_launch_pid}" || true
+    exit 1
+  fi
+  sleep 1
+done
+if [ "${router_ready}" -ne 1 ]; then
+  echo "ERROR: simulator Zenoh router did not become available on port 7447." >&2
+  exit 1
+fi
+
+echo "[initialize_simulation] waiting for Gazebo simulated clock..."
+clock_ready=0
+for _ in $(seq 1 90); do
+  clock_output="$(timeout 5 docker exec rovosim bash -lc \
+      'source /opt/ros/rolling/setup.bash && source /opt/sim/ros2_ws/install/setup.bash && timeout -k 1 2 ros2 topic echo /clock --once' 2>&1 || true)"
+  if printf '%s\n' "${clock_output}" | grep -Eq 'sec:|nanosec:'; then
+    clock_ready=1
+    break
+  fi
+  if ! kill -0 "${sim_launch_pid}" 2>/dev/null; then
+    echo "ERROR: Gazebo launch exited before publishing /clock." >&2
+    wait "${sim_launch_pid}" || true
+    exit 1
+  fi
+  sleep 1
+done
+if [ "${clock_ready}" -ne 1 ]; then
+  echo "ERROR: Gazebo did not publish simulated time on /clock." >&2
+  exit 1
+fi
+echo "[initialize_simulation] Gazebo world is publishing simulated time."
+
+wait "${sim_launch_pid}"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""rovo_fake_pico: UDP -> Twist bridge emulating the on-robot Pico controller.
+"""rovo_fake_pico: command bridge emulating the on-robot Pico controller.
 
 Listens on a single UDP port (default 8888) for two ASCII packet formats:
 
@@ -27,6 +27,9 @@ the same scaling.
 
 Output topic: /cmd_vel_gcs (geometry_msgs/TwistStamped) — matches the URDF
 DiffDrive / TrackedVehicle plugin <topic> in rovo_gz_description.
+
+Also accepts Nav2's final Twist command on /cmd_vel and forwards it through
+the same output publisher to the simulator drive plugin.
 """
 
 import math
@@ -72,6 +75,7 @@ class FakePicoNode(Node):
         self.declare_parameter("max_rpm", DEFAULT_MAX_RPM)
         self.declare_parameter("rpm_multiplier", DEFAULT_RPM_MULTIPLIER)
         self.declare_parameter("output_topic", "/cmd_vel_gcs")
+        self.declare_parameter("cmd_vel_input_topic", "/cmd_vel")
         self.declare_parameter("publish_rate_hz", 100.0)
         self.declare_parameter("status_topic", "rovo_can_state")
         self.declare_parameter("status_rate_hz", 50.0)
@@ -86,6 +90,7 @@ class FakePicoNode(Node):
         self.max_rpm = int(self.get_parameter("max_rpm").value)
         self.rpm_multiplier = float(self.get_parameter("rpm_multiplier").value)
         self.output_topic = self.get_parameter("output_topic").value
+        self.cmd_vel_input_topic = self.get_parameter("cmd_vel_input_topic").value
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.status_topic = self.get_parameter("status_topic").value
         self.status_rate_hz = float(self.get_parameter("status_rate_hz").value)
@@ -104,6 +109,9 @@ class FakePicoNode(Node):
 
         self.pub = self.create_publisher(TwistStamped, self.output_topic, 10)
         self.status_pub = self.create_publisher(String, self.status_topic, 10)
+        self.cmd_vel_sub = self.create_subscription(
+            TwistStamped, self.cmd_vel_input_topic, self._cmd_vel_stamped_callback, 10
+        )
         self._alive_counter = 0
 
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -121,9 +129,18 @@ class FakePicoNode(Node):
         self.get_logger().info(
             f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} "
             f"(gcs + android teleop) "
-            f"-> publishing Twist on {self.output_topic} @ {self.publish_rate_hz} Hz "
+            f"and {self.cmd_vel_input_topic} -> {self.output_topic} "
+            f"@ {self.publish_rate_hz} Hz "
             f"(rpm_multiplier={self.rpm_multiplier})"
         )
+
+    def _cmd_vel_stamped_callback(self, msg: TwistStamped) -> None:
+        """Forward Nav2's final ROS velocity command to the simulator output."""
+        with self._lock:
+            self._last_twist = msg.twist
+            self._estop = False
+            self._rx_count += 1
+            self._last_rx_time = monotonic()
 
     def _rx_loop(self) -> None:
         while not self._stop.is_set():
