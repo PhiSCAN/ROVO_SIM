@@ -182,6 +182,17 @@ def _launch_setup(context, *args, **kwargs):
         )
         actions.append(bridge)
 
+        # Gazebo's GPU lidar publishes an instantaneous cloud without the
+        # per-point `time` field required by DLIO's deskew stage.
+        velodyne_time_adapter = Node(
+            package="rovo_gz_description",
+            executable="velodyne_time_adapter.py",
+            name="velodyne_time_adapter",
+            parameters=[{"use_sim_time": use_sim_time}],
+            output="screen",
+        )
+        actions.append(velodyne_time_adapter)
+
     return actions
 
 

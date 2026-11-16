@@ -36,21 +36,30 @@
   gz_type_name: "gz.msgs.NavSat"
   direction: GZ_TO_ROS
 
-# Command Velocity: GCS manual and Nav2 auto share the Gazebo drive input.
+# Command velocity inputs share Gazebo's standard cmd_vel drive topic.
 - ros_topic_name: "gcs_cmd_vel"
-  gz_topic_name: "cmd_vel_gcs"
+  gz_topic_name: "cmd_vel"
   ros_type_name: "geometry_msgs/msg/TwistStamped"
   gz_type_name: "gz.msgs.Twist"
   direction: ROS_TO_GZ
 
 - ros_topic_name: "auto_cmd_vel"
-  gz_topic_name: "cmd_vel_gcs"
+  gz_topic_name: "cmd_vel"
   ros_type_name: "geometry_msgs/msg/TwistStamped"
   gz_type_name: "gz.msgs.Twist"
   direction: ROS_TO_GZ
 
-# Velodyne LiDAR Point Cloud
-- ros_topic_name: "/velodyne_points"
+# Nav2's collision_monitor publishes its final command on /cmd_vel.
+# Bridge it to the same Gazebo drive input as manual and auto commands.
+- ros_topic_name: "cmd_vel"
+  gz_topic_name: "cmd_vel"
+  ros_type_name: "geometry_msgs/msg/TwistStamped"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# Keep Gazebo's cloud raw here; velodyne_time_adapter adds the per-point
+# timing field DLIO expects before publishing /velodyne_points.
+- ros_topic_name: "/velodyne_points_raw"
   gz_topic_name: "/velodyne_points/points"
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "gz.msgs.PointCloudPacked"

@@ -279,7 +279,7 @@
       <wheel_radius>${wheel_radius}</wheel_radius>
       <max_linear_acceleration>1.0</max_linear_acceleration>
       <max_angular_velocity>1.0</max_angular_velocity>
-      <topic>cmd_vel_gcs</topic>
+      <topic>cmd_vel</topic>
       <odom_topic>odom</odom_topic>
       <tf_topic></tf_topic>
       <frame_id>odom</frame_id>

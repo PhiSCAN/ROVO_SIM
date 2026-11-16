@@ -43,7 +43,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "listen_port": LaunchConfiguration("fake_pico_port"),
-            "output_topic": "/gcs_cmd_vel",
+            "output_topic": "/rovo/cmd_vel",
         }.items(),
     )
 

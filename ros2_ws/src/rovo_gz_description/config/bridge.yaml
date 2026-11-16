@@ -1,12 +1,6 @@
 # ros_gz_bridge topic mapping for Rovo
-- ros_topic_name: "gcs_cmd_vel"
-  gz_topic_name: "cmd_vel_gcs"
-  ros_type_name: "geometry_msgs/msg/TwistStamped"
-  gz_type_name: "gz.msgs.Twist"
-  direction: ROS_TO_GZ
-
-- ros_topic_name: "auto_cmd_vel"
-  gz_topic_name: "cmd_vel_gcs"
+- ros_topic_name: "/rovo/cmd_vel"
+  gz_topic_name: "cmd_vel"
   ros_type_name: "geometry_msgs/msg/TwistStamped"
   gz_type_name: "gz.msgs.Twist"
   direction: ROS_TO_GZ

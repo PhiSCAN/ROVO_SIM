@@ -126,7 +126,7 @@ def _launch_setup(context, *args, **kwargs):
     zero_cmd = TimerAction(
         period=14.0,
         actions=[ExecuteProcess(
-            cmd=["ros2", "topic", "pub", "--once", "/gcs_cmd_vel",
+            cmd=["ros2", "topic", "pub", "--once", "/rovo/cmd_vel",
                  "geometry_msgs/msg/TwistStamped",
                  "{header: {frame_id: base_link}, twist: {linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}"],
             output="log",

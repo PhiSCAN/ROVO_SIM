@@ -63,7 +63,7 @@ ros2 launch rovo_gz_description realsense_verify.launch.py
 
 ```bash
 ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-  --ros-args -r cmd_vel:=/gcs_cmd_vel
+  --ros-args -r cmd_vel:=/rovo/cmd_vel
 ```
 
 ## Env defaults inside container
@@ -106,7 +106,7 @@ rovo_gz_description/
 
 | ROS topic       | Direction   | gz topic                                      |
 |-----------------|-------------|-----------------------------------------------|
-| `/gcs_cmd_vel`, `/auto_cmd_vel` | pub → gz | `/cmd_vel_gcs` |
+| `/rovo/cmd_vel` | pub → gz | `/cmd_vel` |
 | `/odom`         | sub ← gz    | `/odom`                                       |
 | `/tf`           | sub ← gz    | `/tf`                                         |
 | `/joint_states` | sub ← gz    | `/world/empty/model/rovo/joint_state`         |
