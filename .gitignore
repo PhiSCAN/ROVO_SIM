@@ -10,3 +10,4 @@ __pycache__/
 gz_cache/auto_default.log
 gz_cache/rendering/
 gz_cache/sim/
+gz_cache/fuel
