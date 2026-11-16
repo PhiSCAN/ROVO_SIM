@@ -95,7 +95,7 @@ def generate_launch_description():
         DeclareLaunchArgument("world", default_value="empty.sdf",
                               description="World .sdf filename in worlds/"),
         DeclareLaunchArgument(
-            "use_sim_time", default_value=os.environ.get("USE_SIM_TIME", "true").lower(),
+            "use_sim_time", default_value=os.environ.get("use_sim_time", "true").lower(),
             description="Use ROS simulation clock from /clock",
         ),
         OpaqueFunction(function=_launch_setup),

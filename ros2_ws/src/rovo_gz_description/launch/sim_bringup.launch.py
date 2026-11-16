@@ -43,7 +43,7 @@ def generate_launch_description():
         ),
         launch_arguments={
             "listen_port": LaunchConfiguration("fake_pico_port"),
-            "output_topic": "/cmd_vel_gcs",
+            "output_topic": "/gcs_cmd_vel",
         }.items(),
     )
 
@@ -55,7 +55,7 @@ def generate_launch_description():
                         "office | orchard | solar_farm | construction."
         ),
         DeclareLaunchArgument("model", default_value="tracked"),
-        DeclareLaunchArgument("fake_pico_port", default_value="8887"),
+        DeclareLaunchArgument("fake_pico_port", default_value="8888"),
         DeclareLaunchArgument("launch_rviz", default_value="false"),
         DeclareLaunchArgument(
             "actors", default_value="true",

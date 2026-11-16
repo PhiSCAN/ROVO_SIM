@@ -54,7 +54,13 @@ def _build_bridge_yaml(world_name: str) -> str:
     """Generate a per-launch bridge YAML with the world name baked into the
     gz joint_state topic. ros_gz_bridge needs the literal topic string."""
     yaml = f"""\
-- ros_topic_name: "cmd_vel_gcs"
+- ros_topic_name: "gcs_cmd_vel"
+  gz_topic_name: "cmd_vel_gcs"
+  ros_type_name: "geometry_msgs/msg/TwistStamped"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+- ros_topic_name: "auto_cmd_vel"
   gz_topic_name: "cmd_vel_gcs"
   ros_type_name: "geometry_msgs/msg/TwistStamped"
   gz_type_name: "gz.msgs.Twist"
@@ -227,7 +233,7 @@ def _launch_setup(context, *args, **kwargs):
         actions=[
             ExecuteProcess(
                 cmd=[
-                    "ros2", "topic", "pub", "--once", "/cmd_vel_gcs",
+                    "ros2", "topic", "pub", "--once", "/gcs_cmd_vel",
                     "geometry_msgs/msg/TwistStamped",
                     "{header: {frame_id: base_link}, twist: "
                     "{linear: {x: 0.0, y: 0.0, z: 0.0}, "
@@ -254,7 +260,7 @@ def generate_launch_description():
             description="Running world name (used in gz joint_state topic)."
         ),
         DeclareLaunchArgument(
-            "use_sim_time", default_value=os.environ.get("USE_SIM_TIME", "true").lower()
+            "use_sim_time", default_value=os.environ.get("use_sim_time", "true").lower()
         ),
         DeclareLaunchArgument(
             "model", default_value="tracked",

@@ -40,7 +40,7 @@ In a separate terminal:
 ```
 
 Execs into the running container, runs `teleop_twist_keyboard` publishing
-TwistStamped on `/cmd_vel_gcs`.
+TwistStamped on `/gcs_cmd_vel`.
 
 ## Enable realsense driver
 

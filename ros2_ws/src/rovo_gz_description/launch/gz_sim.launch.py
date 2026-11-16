@@ -18,7 +18,7 @@ from launch_ros.substitutions import FindPackageShare
 def _launch_setup(context, *args, **kwargs):
     pkg = "rovo_gz_description"
     pkg_share = get_package_share_directory(pkg)
-    use_sim_time = os.environ.get("USE_SIM_TIME", "true").lower() in ("true", "1")
+    use_sim_time = os.environ.get("use_sim_time", "true").lower() in ("true", "1")
 
     # ── World resolution ──────────────────────────────────────────────────────
     world_arg = LaunchConfiguration("world").perform(context)
@@ -126,7 +126,7 @@ def _launch_setup(context, *args, **kwargs):
     zero_cmd = TimerAction(
         period=14.0,
         actions=[ExecuteProcess(
-            cmd=["ros2", "topic", "pub", "--once", "/cmd_vel_gcs",
+            cmd=["ros2", "topic", "pub", "--once", "/gcs_cmd_vel",
                  "geometry_msgs/msg/TwistStamped",
                  "{header: {frame_id: base_link}, twist: {linear: {x: 0.0, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}}"],
             output="log",

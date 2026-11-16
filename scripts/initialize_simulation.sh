@@ -73,12 +73,12 @@ xhost +local: >/dev/null 2>&1 || true
   "${SCRIPT_DIR}/colcon_build.sh"
 fi
 
-cd "${PROJECT_DIR}" && USE_SIM_TIME=true docker compose exec -T rovosim bash -c "set -e && \
+cd "${PROJECT_DIR}" && use_sim_time=true docker compose exec -T rovosim bash -c "set -e && \
     source /opt/ros/rolling/setup.bash && \
     source /opt/sim/ros2_ws/install/setup.bash && \
     exec ros2 launch veera_simulator veera_sim.launch.py \
     world:=${WORLD} model:=${MODEL} actors:=false \
-    use_sim_time:=${USE_SIM_TIME:-true}" &
+    use_sim_time:=${use_sim_time:-true}" &
 sim_launch_pid=$!
 
 echo "[initialize_simulation] waiting for simulator Zenoh router on port 7447..."
