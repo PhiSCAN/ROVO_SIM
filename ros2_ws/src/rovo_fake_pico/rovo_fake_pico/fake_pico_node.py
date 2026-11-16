@@ -25,11 +25,8 @@ XY mode: FWD/TURN are scaled integers in [-800, 800] / [-500, 500]
 matching gcs_cmd_vel.py's encoding; converted back to Twist by undoing
 the same scaling.
 
-Output topic: /cmd_vel_gcs (geometry_msgs/TwistStamped) — matches the URDF
-DiffDrive / TrackedVehicle plugin <topic> in rovo_gz_description.
-
-Also accepts Nav2's final Twist command on /cmd_vel and forwards it through
-the same output publisher to the simulator drive plugin.
+Output topic: /gcs_cmd_vel (geometry_msgs/TwistStamped). Nav2 publishes
+independently on /auto_cmd_vel; both topics bridge to the Gazebo drive input.
 """
 
 import math
@@ -74,8 +71,7 @@ class FakePicoNode(Node):
         self.declare_parameter("wheel_base_m", DEFAULT_WHEEL_BASE_M)
         self.declare_parameter("max_rpm", DEFAULT_MAX_RPM)
         self.declare_parameter("rpm_multiplier", DEFAULT_RPM_MULTIPLIER)
-        self.declare_parameter("output_topic", "/cmd_vel_gcs")
-        self.declare_parameter("cmd_vel_input_topic", "/cmd_vel")
+        self.declare_parameter("output_topic", "/gcs_cmd_vel")
         self.declare_parameter("publish_rate_hz", 100.0)
         self.declare_parameter("status_topic", "rovo_can_state")
         self.declare_parameter("status_rate_hz", 50.0)
@@ -90,7 +86,6 @@ class FakePicoNode(Node):
         self.max_rpm = int(self.get_parameter("max_rpm").value)
         self.rpm_multiplier = float(self.get_parameter("rpm_multiplier").value)
         self.output_topic = self.get_parameter("output_topic").value
-        self.cmd_vel_input_topic = self.get_parameter("cmd_vel_input_topic").value
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.status_topic = self.get_parameter("status_topic").value
         self.status_rate_hz = float(self.get_parameter("status_rate_hz").value)
@@ -109,9 +104,6 @@ class FakePicoNode(Node):
 
         self.pub = self.create_publisher(TwistStamped, self.output_topic, 10)
         self.status_pub = self.create_publisher(String, self.status_topic, 10)
-        self.cmd_vel_sub = self.create_subscription(
-            TwistStamped, self.cmd_vel_input_topic, self._cmd_vel_stamped_callback, 10
-        )
         self._alive_counter = 0
 
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -129,18 +121,10 @@ class FakePicoNode(Node):
         self.get_logger().info(
             f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} "
             f"(gcs + android teleop) "
-            f"and {self.cmd_vel_input_topic} -> {self.output_topic} "
+            f"publishing GCS commands on {self.output_topic} "
             f"@ {self.publish_rate_hz} Hz "
             f"(rpm_multiplier={self.rpm_multiplier})"
         )
-
-    def _cmd_vel_stamped_callback(self, msg: TwistStamped) -> None:
-        """Forward Nav2's final ROS velocity command to the simulator output."""
-        with self._lock:
-            self._last_twist = msg.twist
-            self._estop = False
-            self._rx_count += 1
-            self._last_rx_time = monotonic()
 
     def _rx_loop(self) -> None:
         while not self._stop.is_set():
@@ -248,7 +232,7 @@ class FakePicoNode(Node):
     def _publish_timer(self) -> None:
         # Skip publishing if no UDP packet ever received, or last packet is
         # stale. Avoids fighting external publishers (e.g. teleop_twist_keyboard
-        # publishing directly on /cmd_vel_gcs when gcs_cmd_vel.py is not in
+        # publishing directly on /gcs_cmd_vel when gcs_cmd_vel.py is not in
         # the pipeline).
         with self._lock:
             last_rx = self._last_rx_time

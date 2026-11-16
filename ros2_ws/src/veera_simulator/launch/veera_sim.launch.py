@@ -134,7 +134,7 @@ def _launch_setup(context, *args, **kwargs):
             ),
             launch_arguments={
                 "listen_port": fake_pico_port,
-                "output_topic": "/cmd_vel_gcs",
+                "output_topic": "/gcs_cmd_vel",
                 "use_sim_time": str(use_sim_time).lower(),
             }.items(),
         )]

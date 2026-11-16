@@ -9,7 +9,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("listen_port", default_value="8888"),
-        DeclareLaunchArgument("output_topic", default_value="/cmd_vel_gcs"),
+        DeclareLaunchArgument("output_topic", default_value="/gcs_cmd_vel"),
         DeclareLaunchArgument("rpm_multiplier", default_value="1.0"),
         DeclareLaunchArgument("use_sim_time", default_value="true"),
         Node(
