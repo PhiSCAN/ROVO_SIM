@@ -11,3 +11,16 @@ gz_cache/auto_default.log
 gz_cache/rendering/
 gz_cache/sim/
 gz_cache/fuel
+
+# Common log files and rotated logs
+*.log
+*.log.*
+*.LOG
+*.LOG.*
+log/
+logs/
+*_log
+*_log.*
+*_LOG
+*_LOG.*
+nohup.out
