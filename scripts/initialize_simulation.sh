@@ -61,9 +61,9 @@ echo "[initialize_simulation] world=${WORLD} model=${MODEL}"
 
 xhost +local: >/dev/null 2>&1 || true
 
-# Check if workspace has been built in the container's mounted volume
-# (if ! ... guard keeps `set -e` from exiting before the rebuild branch)
-  if ! cd "${PROJECT_DIR}" && docker compose exec rovosim bash -c "
+# Check if workspace has been built in the container's mounted volume.
+cd "${PROJECT_DIR}"
+if ! docker compose exec rovosim bash -c "
   if [ ! -d /opt/sim/ros2_ws/build ] || [ ! -d /opt/sim/ros2_ws/install ] || [ ! -d /opt/sim/ros2_ws/log ]; then
     echo 'Workspace not built. Running colcon build...'
     exit 1

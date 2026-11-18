@@ -20,7 +20,7 @@ services:
       - RMW_IMPLEMENTATION=rmw_zenoh_cpp
       - use_sim_time=true
     volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:rwfs
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ./ros2_ws:/opt/sim/ros2_ws
       - ./models:/opt/sim/models
       - ./gz_cache:/root/.gz
@@ -57,7 +57,7 @@ services:
   #     - __GLX_VENDOR_LIBRARY_NAME=nvidia
   #     - RMW_IMPLEMENTATION=rmw_zenoh_cpp
   #   volumes:
-  #     - /tmp/.X11-unix:/tmp/.X11-unix:rwfs
+  #     - /tmp/.X11-unix:/tmp/.X11-unix:rw
   #     - ./ros2_ws:/opt/sim/ros2_ws
   #   devices:
   #     - /dev/dri:/dev/dri

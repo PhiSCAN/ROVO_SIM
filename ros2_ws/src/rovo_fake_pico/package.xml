@@ -5,8 +5,8 @@
   <description>
     UDP-to-Twist bridge that emulates the Rovo on-board Pico controller.
     Listens on UDP port 8888 for manual GCS and Flutter commands and
-    publishes them to /rovo/cmd_vel. Nav2 commands from /auto_cmd_vel are
-    relayed by fake Pico to that same simulator drive topic.
+    publishes them to /rovo/cmd_vel. Nav2 commands from /cmd_vel and /auto_cmd_vel,
+    plus GCS commands from /gcs_cmd_vel, are relayed to that simulator drive topic.
   </description>
   <maintainer email="tombabyrose@gmail.com">phicode</maintainer>
   <license>Apache-2.0</license>

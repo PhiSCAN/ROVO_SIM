@@ -25,8 +25,9 @@ XY mode: FWD/TURN are scaled integers in [-800, 800] / [-500, 500]
 matching gcs_cmd_vel.py's encoding; converted back to Twist by undoing
 the same scaling.
 
-UDP and Nav2 commands are published on /rovo/cmd_vel (geometry_msgs/TwistStamped).
-Nav2 commands arrive on /auto_cmd_vel and are relayed to that shared topic.
+UDP, GCS ROS, and Nav2 commands are published on /rovo/cmd_vel
+(geometry_msgs/TwistStamped). ROS inputs arrive on /cmd_vel, /gcs_cmd_vel,
+and /auto_cmd_vel and are relayed to that shared topic.
 """
 
 import math
@@ -72,6 +73,8 @@ class FakePicoNode(Node):
         self.declare_parameter("max_rpm", DEFAULT_MAX_RPM)
         self.declare_parameter("rpm_multiplier", DEFAULT_RPM_MULTIPLIER)
         self.declare_parameter("output_topic", "/rovo/cmd_vel")
+        self.declare_parameter("cmd_topic", "/cmd_vel")
+        self.declare_parameter("gcs_topic", "/gcs_cmd_vel")
         self.declare_parameter("auto_topic", "/auto_cmd_vel")
         self.declare_parameter("publish_rate_hz", 100.0)
         self.declare_parameter("status_topic", "rovo_can_state")
@@ -87,6 +90,8 @@ class FakePicoNode(Node):
         self.max_rpm = int(self.get_parameter("max_rpm").value)
         self.rpm_multiplier = float(self.get_parameter("rpm_multiplier").value)
         self.output_topic = self.get_parameter("output_topic").value
+        self.cmd_topic = self.get_parameter("cmd_topic").value
+        self.gcs_topic = self.get_parameter("gcs_topic").value
         self.auto_topic = self.get_parameter("auto_topic").value
         self.publish_rate_hz = float(self.get_parameter("publish_rate_hz").value)
         self.status_topic = self.get_parameter("status_topic").value
@@ -106,7 +111,13 @@ class FakePicoNode(Node):
 
         self.pub = self.create_publisher(TwistStamped, self.output_topic, 10)
         self.auto_sub = self.create_subscription(
-            TwistStamped, self.auto_topic, self._auto_cmd_vel_callback, 10
+            TwistStamped, self.auto_topic, self._relay_cmd_vel_callback, 10
+        )
+        self.cmd_sub = self.create_subscription(
+            TwistStamped, self.cmd_topic, self._relay_cmd_vel_callback, 10
+        )
+        self.gcs_sub = self.create_subscription(
+            TwistStamped, self.gcs_topic, self._relay_cmd_vel_callback, 10
         )
         self.status_pub = self.create_publisher(String, self.status_topic, 10)
         self._alive_counter = 0
@@ -126,13 +137,14 @@ class FakePicoNode(Node):
         self.get_logger().info(
             f"rovo_fake_pico listening on udp://{self.listen_ip}:{self.listen_port} "
             f"(gcs + android teleop) "
-            f"publishing UDP and relayed Nav2 commands on {self.output_topic} "
+            f"relaying {self.cmd_topic}, {self.gcs_topic}, and {self.auto_topic}; "
+            f"publishing UDP and ROS commands on {self.output_topic} "
             f"@ {self.publish_rate_hz} Hz "
             f"(rpm_multiplier={self.rpm_multiplier})"
         )
 
-    def _auto_cmd_vel_callback(self, msg: TwistStamped) -> None:
-        """Relay autonomous commands to the simulator's shared drive topic."""
+    def _relay_cmd_vel_callback(self, msg: TwistStamped) -> None:
+        """Relay ROS motor commands to the simulator's shared drive topic."""
         self.pub.publish(msg)
 
     def _rx_loop(self) -> None:

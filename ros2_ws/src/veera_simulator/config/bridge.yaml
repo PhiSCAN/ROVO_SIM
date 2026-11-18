@@ -36,22 +36,9 @@
   gz_type_name: "gz.msgs.NavSat"
   direction: GZ_TO_ROS
 
-# Command velocity inputs share Gazebo's standard cmd_vel drive topic.
-- ros_topic_name: "gcs_cmd_vel"
-  gz_topic_name: "cmd_vel"
-  ros_type_name: "geometry_msgs/msg/TwistStamped"
-  gz_type_name: "gz.msgs.Twist"
-  direction: ROS_TO_GZ
-
-- ros_topic_name: "auto_cmd_vel"
-  gz_topic_name: "cmd_vel"
-  ros_type_name: "geometry_msgs/msg/TwistStamped"
-  gz_type_name: "gz.msgs.Twist"
-  direction: ROS_TO_GZ
-
-# Nav2's collision_monitor publishes its final command on /cmd_vel.
-# Bridge it to the same Gazebo drive input as manual and auto commands.
-- ros_topic_name: "cmd_vel"
+# The fake motor node merges GCS and Nav2 commands onto the simulator drive
+# topic, matching the command path used by the real motor controller.
+- ros_topic_name: "/rovo/cmd_vel"
   gz_topic_name: "cmd_vel"
   ros_type_name: "geometry_msgs/msg/TwistStamped"
   gz_type_name: "gz.msgs.Twist"

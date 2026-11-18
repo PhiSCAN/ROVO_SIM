@@ -10,6 +10,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("listen_port", default_value="8888"),
         DeclareLaunchArgument("output_topic", default_value="/rovo/cmd_vel"),
+        DeclareLaunchArgument("cmd_topic", default_value="/cmd_vel"),
+        DeclareLaunchArgument("gcs_topic", default_value="/gcs_cmd_vel"),
         DeclareLaunchArgument("auto_topic", default_value="/auto_cmd_vel"),
         DeclareLaunchArgument("rpm_multiplier", default_value="1.0"),
         DeclareLaunchArgument("use_sim_time", default_value="true"),
@@ -20,6 +22,8 @@ def generate_launch_description():
             parameters=[{
                 "listen_port": LaunchConfiguration("listen_port"),
                 "output_topic": LaunchConfiguration("output_topic"),
+                "cmd_topic": LaunchConfiguration("cmd_topic"),
+                "gcs_topic": LaunchConfiguration("gcs_topic"),
                 "auto_topic": LaunchConfiguration("auto_topic"),
                 "rpm_multiplier": LaunchConfiguration("rpm_multiplier"),
                 "use_sim_time": ParameterValue(
