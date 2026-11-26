@@ -70,7 +70,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard \
 
 ```bash
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-export ROS_DOMAIN_ID=50
+export ROS_DOMAIN_ID=52
 ```
 
 ## World / model overrides

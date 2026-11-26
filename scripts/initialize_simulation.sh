@@ -2,12 +2,12 @@
 # initialize_simulation.sh [WORLD] [MODEL]
 #
 # WORLD: name of a world in ros2_ws/src/veera_simulator/worlds (default: empty)
-#        e.g. empty | warehouse | pipeline | office | orchard | solar_farm | construction
+#        e.g. empty | warehouse | pipeline | office | orchard | solar_farm | construction | terrain
 # MODEL: tracked (default) | diff_drive
 #
 # Usage: ./initialize_simulation.sh [WORLD] [MODEL]
 #
-# Launches Zenoh + world + RViz + rovo_fake_pico via docker compose.
+# Launches the world + RViz + rovo_fake_pico via docker compose.
 # Uses veera_simulator package with local assets (no clearpath_simulator dependency).
 #
 # NOTE: Run ./setup_network.sh once on the host to configure the loopback alias.
@@ -18,6 +18,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "${SCRIPT_DIR}")"
 WORLD="${1:-empty}"
 MODEL="${2:-${MODEL:-tracked}}"
+RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+export RMW_IMPLEMENTATION
+export COMPOSE_PROFILES="${RMW_IMPLEMENTATION}"
 
 # Validate world against veera_simulator/worlds before starting the container
 WORLDS_DIR="${PROJECT_DIR}/ros2_ws/src/veera_simulator/worlds"
@@ -81,24 +84,7 @@ cd "${PROJECT_DIR}" && use_sim_time=true docker compose exec -T rovosim bash -c 
     use_sim_time:=${use_sim_time:-true}" &
 sim_launch_pid=$!
 
-echo "[initialize_simulation] waiting for simulator Zenoh router on port 7447..."
-router_ready=0
-for _ in $(seq 1 90); do
-  if timeout 1 bash -c 'exec 3<>/dev/tcp/127.0.0.1/7447' 2>/dev/null; then
-    router_ready=1
-    break
-  fi
-  if ! kill -0 "${sim_launch_pid}" 2>/dev/null; then
-    echo "ERROR: simulator launch exited before Zenoh became available." >&2
-    wait "${sim_launch_pid}" || true
-    exit 1
-  fi
-  sleep 1
-done
-if [ "${router_ready}" -ne 1 ]; then
-  echo "ERROR: simulator Zenoh router did not become available on port 7447." >&2
-  exit 1
-fi
+echo "[initialize_simulation] waiting for simulated clock over ${RMW_IMPLEMENTATION}..."
 
 echo "[initialize_simulation] waiting for Gazebo simulated clock..."
 clock_ready=0

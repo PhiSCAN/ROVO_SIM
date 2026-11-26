@@ -17,7 +17,7 @@ services:
       - __NV_PRIME_RENDER_OFFLOAD=1
       - __GLX_VENDOR_LIBRARY_NAME=nvidia
       - GZ_SIM_RESOURCE_PATH=/opt/sim/models:/opt/sim/ros2_ws/install/veera_simulator/share:/opt/sim/ros2_ws/install/rovo_gz_description/share
-      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
       - use_sim_time=true
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
@@ -79,6 +79,7 @@ services:
     # which vendors Zenoh 1.10.1.
     image: eclipse/zenoh:1.10.1
     container_name: sim-zenoh-router
+    profiles: [rmw_zenoh_cpp]
     network_mode: host
     restart: unless-stopped
     volumes:

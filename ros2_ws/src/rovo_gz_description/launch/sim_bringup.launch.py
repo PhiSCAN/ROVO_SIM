@@ -18,12 +18,14 @@ def generate_launch_description():
     rovo_gz_share = get_package_share_directory("rovo_gz_description")
     fake_pico_share = get_package_share_directory("rovo_fake_pico")
 
-    zenoh_router = Node(
-        package="rmw_zenoh_cpp",
-        executable="rmw_zenohd",
-        name="rmw_zenohd",
-        output="screen",
-    )
+    actions = []
+    if os.environ.get("RMW_IMPLEMENTATION", "rmw_cyclonedds_cpp") == "rmw_zenoh_cpp":
+        actions.append(Node(
+            package="rmw_zenoh_cpp",
+            executable="rmw_zenohd",
+            name="rmw_zenohd",
+            output="screen",
+        ))
 
     world_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -47,7 +49,7 @@ def generate_launch_description():
         }.items(),
     )
 
-    return LaunchDescription([
+    actions.extend([
         DeclareLaunchArgument(
             "world", default_value="empty",
             description="World name. 'empty' uses rovo_gz_description's "
@@ -60,7 +62,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "actors", default_value="true",
             description="Spawn animated walking actors (warehouse only)"),
-        zenoh_router,
         world_launch,
         fake_pico,
     ])
+    return LaunchDescription(actions)

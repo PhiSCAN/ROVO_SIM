@@ -8,7 +8,7 @@ Replaces clearpath_simulator functionality while using local assets.
 Usage:
   ros2 launch veera_simulator veera_sim.launch.py world:=warehouse model:=tracked
 
-Available worlds: empty, construction, office, orchard, pipeline, solar_farm, warehouse
+Available worlds: empty, construction, office, orchard, pipeline, solar_farm, terrain, warehouse
 """
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -19,6 +19,7 @@ from launch.actions import (
     OpaqueFunction,
     TimerAction,
     LogInfo,
+    SetEnvironmentVariable,
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
@@ -35,6 +36,9 @@ _WORLD_SPAWN_DEFAULTS = {
     "construction": ("0.0", "0.0", "0.0"),
     "orchard":     ("0.0", "0.0", "0.0"),
     "solar_farm":  ("0.0", "0.0", "0.0"),
+    # Current verified pose on the terrain mesh; surface is about 1.5 cm below
+    # this base_link height at the sampled cell.
+    "terrain":     ("125.446", "282.865", "-11.3239"),
 }
 
 
@@ -159,6 +163,15 @@ def _launch_setup(context, *args, **kwargs):
     spawn_actors = TimerAction(period=5.0, actions=actor_nodes) if actor_nodes else []
 
     actions = [
+        # Resolve model://terrain/... from the meshes directory installed with
+        # veera_simulator, including in the Docker-based launch path.
+        SetEnvironmentVariable(
+            name="GZ_SIM_RESOURCE_PATH",
+            value=os.pathsep.join([
+                os.path.join(veera_share, "meshes"),
+                os.environ.get("GZ_SIM_RESOURCE_PATH", ""),
+            ]),
+        ),
         # zenoh_router,
         gz_sim,
         rsp,
@@ -207,7 +220,7 @@ def generate_launch_description():
                 "world",
                 default_value="empty",
                 description="World name. Available: empty, construction, office, "
-                            "orchard, pipeline, solar_farm, warehouse",
+                            "orchard, pipeline, solar_farm, terrain, warehouse",
             ),
             # Robot model selection
             DeclareLaunchArgument(

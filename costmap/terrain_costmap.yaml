@@ -1,0 +1,10 @@
+image: terrain_costmap.png
+mode: scale
+resolution: 0.5
+# Local map-frame origin, rebased from EPSG:32643 UTM 43N against the terrain
+# world's center at UTM (637042.5, 3099635.5). Yaw remains zero, matching the
+# current terrain mesh's UTM-grid axes.
+origin: [-850.0, -961.0, 0.0]
+negate: 0
+occupied_thresh: 1.0
+free_thresh: 0.0
